@@ -1,5 +1,6 @@
 -- MotoTrack Pro - Schema Supabase
--- Execute este script no SQL Editor do Supabase
+-- Script atualizado - Clique em "Execute" para criar as tabelas
+-- Este script cria todas as tabelas necessárias para o sistema
 
 -- Tabela de usuários
 CREATE TABLE IF NOT EXISTS users (
