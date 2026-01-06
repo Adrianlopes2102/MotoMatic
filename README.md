@@ -1,50 +1,76 @@
-# React + TypeScript + Vite
+# MotoTrack Pro - Sistema de Gestão de Manutenção Off-Road
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema SaaS completo para controle de manutenção de motos de trilha, enduro e motocross.
 
-Currently, two official plugins are available:
+## 🏍️ Funcionalidades Principais
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Para Pilotos
+- **Cadastro de Motos**: Registre todas as suas motos com fotos, marca, modelo e ano
+- **Horímetro Inteligente**: Controle automático de horas de uso com ajuste por tipo de trilha
+- **Sistema de Manutenção**: Acompanhe todas as manutenções necessárias com alertas visuais
+- **Registro de Trilhas**: Documente cada trilha com horas, tipo de uso e observações
+- **Histórico Completo**: Veja todo o histórico técnico da sua moto
+- **Notificações**: Receba alertas de manutenções próximas ou atrasadas
+- **Liberação de Mecânico**: Dê acesso temporário para mecânicos registrarem serviços
 
-## Expanding the ESLint configuration
+### Para Mecânicos
+- **Acesso a Motas de Clientes**: Veja apenas motos liberadas pelos donos
+- **Registro de Serviços**: Documente manutenções realizadas com peças e custos
+- **Histórico Protegido**: Não pode apagar registros (auditoria completa)
+- **Perfil Profissional**: Mostre seu trabalho para os clientes
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+## 💰 Planos de Assinatura
 
-- Configure the top-level `parserOptions` property like this:
+### Free (Trial)
+- 7 dias de teste grátis
+- Acesso completo a todas as funcionalidades
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### Pro Piloto - R$ 29,90/mês
+- Motos ilimitadas
+- Sistema completo de manutenção
+- Notificações automáticas
+
+### Oficina/Mecânico - R$ 49,90/mês
+- Tudo do Pro Piloto
+- Acesso a motos de clientes
+- Registro profissional de serviços
+
+## 🔧 Sistema de Manutenção
+
+### Categorias
+Motor, Transmissão, Suspensão, Freios, Elétrica, Chassi
+
+### Status Visuais
+- 🟢 Verde: Em dia (0-79%)
+- 🟡 Amarelo: Próxima (80-99%)
+- 🔴 Vermelho: Atrasada (100%+)
+
+## 🚀 Tecnologias
+
+- React 18 + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (PostgreSQL + Auth)
+- Vite 6
+
+## 📦 Setup
+
+### 1. Instalar
+```bash
+npm install
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+### 2. Configurar Supabase
+Execute o script `supabase-schema.sql` no SQL Editor do Supabase
+(Veja instruções em `SETUP-SUPABASE.md`)
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
-
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
+### 3. Rodar
+```bash
+npm run dev
 ```
+
+## 🔐 Segurança
+
+Row Level Security ativado em todas as tabelas:
+- Pilotos só veem suas motos
+- Mecânicos só acessam motos liberadas
+- Registros protegidos contra exclusão
