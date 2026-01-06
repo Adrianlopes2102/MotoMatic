@@ -107,15 +107,22 @@ CREATE POLICY "Users podem atualizar próprio perfil" ON users
 CREATE POLICY "Users podem inserir próprio perfil" ON users
   FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Políticas RLS para motos
+-- Políticas RLS para motos (corrigidas para evitar recursão)
+DROP POLICY IF EXISTS "Pilotos veem suas motos" ON motos;
+DROP POLICY IF EXISTS "Pilotos criam suas motos" ON motos;
+DROP POLICY IF EXISTS "Pilotos atualizam suas motos" ON motos;
+DROP POLICY IF EXISTS "Pilotos deletam suas motos" ON motos;
+
 CREATE POLICY "Pilotos veem suas motos" ON motos
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Mecanicos veem motos liberadas" ON motos
   FOR SELECT USING (
-    auth.uid() = user_id OR
     EXISTS (
       SELECT 1 FROM liberacoes_mecanico
-      WHERE moto_id = motos.id
-        AND mecanico_id = auth.uid()
-        AND ativo = true
+      WHERE liberacoes_mecanico.moto_id = motos.id
+        AND liberacoes_mecanico.mecanico_id = auth.uid()
+        AND liberacoes_mecanico.ativo = true
     )
   );
 
@@ -128,23 +135,22 @@ CREATE POLICY "Pilotos atualizam suas motos" ON motos
 CREATE POLICY "Pilotos deletam suas motos" ON motos
   FOR DELETE USING (auth.uid() = user_id);
 
--- Políticas RLS para manutenções
-CREATE POLICY "Usuários veem manutenções das suas motos" ON manutencoes
+-- Políticas RLS para manutenções (simplificadas)
+DROP POLICY IF EXISTS "Usuários veem manutenções das suas motos" ON manutencoes;
+DROP POLICY IF EXISTS "Usuários criam manutenções nas suas motos" ON manutencoes;
+DROP POLICY IF EXISTS "Usuários atualizam manutenções das suas motos" ON manutencoes;
+DROP POLICY IF EXISTS "Usuários deletam manutenções das suas motos" ON manutencoes;
+
+CREATE POLICY "Ver manutencoes" ON manutencoes
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM motos
       WHERE motos.id = manutencoes.moto_id
-        AND (motos.user_id = auth.uid() OR
-             EXISTS (
-               SELECT 1 FROM liberacoes_mecanico
-               WHERE moto_id = motos.id
-                 AND mecanico_id = auth.uid()
-                 AND ativo = true
-             ))
+        AND motos.user_id = auth.uid()
     )
   );
 
-CREATE POLICY "Usuários criam manutenções nas suas motos" ON manutencoes
+CREATE POLICY "Criar manutencoes" ON manutencoes
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM motos
@@ -153,7 +159,7 @@ CREATE POLICY "Usuários criam manutenções nas suas motos" ON manutencoes
     )
   );
 
-CREATE POLICY "Usuários atualizam manutenções das suas motos" ON manutencoes
+CREATE POLICY "Atualizar manutencoes" ON manutencoes
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -162,7 +168,7 @@ CREATE POLICY "Usuários atualizam manutenções das suas motos" ON manutencoes
     )
   );
 
-CREATE POLICY "Usuários deletam manutenções das suas motos" ON manutencoes
+CREATE POLICY "Deletar manutencoes" ON manutencoes
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -171,60 +177,53 @@ CREATE POLICY "Usuários deletam manutenções das suas motos" ON manutencoes
     )
   );
 
--- Políticas RLS para registros_manutencao
-CREATE POLICY "Usuários veem registros das suas motos" ON registros_manutencao
+-- Políticas RLS para registros_manutencao (simplificadas)
+DROP POLICY IF EXISTS "Usuários veem registros das suas motos" ON registros_manutencao;
+DROP POLICY IF EXISTS "Usuários criam registros nas suas motos" ON registros_manutencao;
+
+CREATE POLICY "Ver registros" ON registros_manutencao
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM motos
       WHERE motos.id = registros_manutencao.moto_id
-        AND (motos.user_id = auth.uid() OR
-             EXISTS (
-               SELECT 1 FROM liberacoes_mecanico
-               WHERE moto_id = motos.id
-                 AND mecanico_id = auth.uid()
-                 AND ativo = true
-             ))
+        AND motos.user_id = auth.uid()
     )
   );
 
-CREATE POLICY "Usuários criam registros nas suas motos" ON registros_manutencao
+CREATE POLICY "Criar registros" ON registros_manutencao
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM motos
       WHERE motos.id = registros_manutencao.moto_id
-        AND (motos.user_id = auth.uid() OR
-             EXISTS (
-               SELECT 1 FROM liberacoes_mecanico
-               WHERE moto_id = motos.id
-                 AND mecanico_id = auth.uid()
-                 AND ativo = true
-             ))
+        AND motos.user_id = auth.uid()
     )
   );
 
--- Políticas RLS para trilhas
-CREATE POLICY "Usuários veem trilhas das suas motos" ON trilhas
-  FOR SELECT USING (
-    auth.uid() = user_id OR
-    EXISTS (
-      SELECT 1 FROM liberacoes_mecanico
-      WHERE moto_id = trilhas.moto_id
-        AND mecanico_id = auth.uid()
-        AND ativo = true
-    )
-  );
+-- Políticas RLS para trilhas (simplificadas)
+DROP POLICY IF EXISTS "Usuários veem trilhas das suas motos" ON trilhas;
+DROP POLICY IF EXISTS "Usuários criam trilhas nas suas motos" ON trilhas;
+DROP POLICY IF EXISTS "Usuários atualizam suas trilhas" ON trilhas;
+DROP POLICY IF EXISTS "Usuários deletam suas trilhas" ON trilhas;
 
-CREATE POLICY "Usuários criam trilhas nas suas motos" ON trilhas
+CREATE POLICY "Ver trilhas" ON trilhas
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Criar trilhas" ON trilhas
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Usuários atualizam suas trilhas" ON trilhas
+CREATE POLICY "Atualizar trilhas" ON trilhas
   FOR UPDATE USING (auth.uid() = user_id);
 
-CREATE POLICY "Usuários deletam suas trilhas" ON trilhas
+CREATE POLICY "Deletar trilhas" ON trilhas
   FOR DELETE USING (auth.uid() = user_id);
 
--- Políticas RLS para liberacoes_mecanico
-CREATE POLICY "Pilotos veem suas liberações" ON liberacoes_mecanico
+-- Políticas RLS para liberacoes_mecanico (simplificadas)
+DROP POLICY IF EXISTS "Pilotos veem suas liberações" ON liberacoes_mecanico;
+DROP POLICY IF EXISTS "Pilotos criam liberações" ON liberacoes_mecanico;
+DROP POLICY IF EXISTS "Pilotos atualizam liberações" ON liberacoes_mecanico;
+DROP POLICY IF EXISTS "Pilotos deletam liberações" ON liberacoes_mecanico;
+
+CREATE POLICY "Ver liberacoes" ON liberacoes_mecanico
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -234,7 +233,7 @@ CREATE POLICY "Pilotos veem suas liberações" ON liberacoes_mecanico
     mecanico_id = auth.uid()
   );
 
-CREATE POLICY "Pilotos criam liberações" ON liberacoes_mecanico
+CREATE POLICY "Criar liberacoes" ON liberacoes_mecanico
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM motos
@@ -243,7 +242,7 @@ CREATE POLICY "Pilotos criam liberações" ON liberacoes_mecanico
     )
   );
 
-CREATE POLICY "Pilotos atualizam liberações" ON liberacoes_mecanico
+CREATE POLICY "Atualizar liberacoes" ON liberacoes_mecanico
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -252,7 +251,7 @@ CREATE POLICY "Pilotos atualizam liberações" ON liberacoes_mecanico
     )
   );
 
-CREATE POLICY "Pilotos deletam liberações" ON liberacoes_mecanico
+CREATE POLICY "Deletar liberacoes" ON liberacoes_mecanico
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM motos
