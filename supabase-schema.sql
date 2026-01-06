@@ -1,6 +1,6 @@
 -- MotoTrack Pro - Schema Supabase
--- Script atualizado - Clique em "Execute" para criar as tabelas
--- Este script cria todas as tabelas necessárias para o sistema
+-- Script corrigido - Clique em "Execute" para criar as tabelas
+-- Versão 2.0 - Políticas RLS simplificadas
 
 -- Tabela de usuários
 CREATE TABLE IF NOT EXISTS users (
@@ -108,15 +108,10 @@ CREATE POLICY "Users podem inserir próprio perfil" ON users
   FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Políticas RLS para motos (corrigidas para evitar recursão)
-DROP POLICY IF EXISTS "Pilotos veem suas motos" ON motos;
-DROP POLICY IF EXISTS "Pilotos criam suas motos" ON motos;
-DROP POLICY IF EXISTS "Pilotos atualizam suas motos" ON motos;
-DROP POLICY IF EXISTS "Pilotos deletam suas motos" ON motos;
-
-CREATE POLICY "Pilotos veem suas motos" ON motos
+CREATE POLICY IF NOT EXISTS "Pilotos veem suas motos" ON motos
   FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Mecanicos veem motos liberadas" ON motos
+CREATE POLICY IF NOT EXISTS "Mecanicos veem motos liberadas" ON motos
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM liberacoes_mecanico
@@ -126,22 +121,17 @@ CREATE POLICY "Mecanicos veem motos liberadas" ON motos
     )
   );
 
-CREATE POLICY "Pilotos criam suas motos" ON motos
+CREATE POLICY IF NOT EXISTS "Pilotos criam suas motos" ON motos
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Pilotos atualizam suas motos" ON motos
+CREATE POLICY IF NOT EXISTS "Pilotos atualizam suas motos" ON motos
   FOR UPDATE USING (auth.uid() = user_id);
 
-CREATE POLICY "Pilotos deletam suas motos" ON motos
+CREATE POLICY IF NOT EXISTS "Pilotos deletam suas motos" ON motos
   FOR DELETE USING (auth.uid() = user_id);
 
 -- Políticas RLS para manutenções (simplificadas)
-DROP POLICY IF EXISTS "Usuários veem manutenções das suas motos" ON manutencoes;
-DROP POLICY IF EXISTS "Usuários criam manutenções nas suas motos" ON manutencoes;
-DROP POLICY IF EXISTS "Usuários atualizam manutenções das suas motos" ON manutencoes;
-DROP POLICY IF EXISTS "Usuários deletam manutenções das suas motos" ON manutencoes;
-
-CREATE POLICY "Ver manutencoes" ON manutencoes
+CREATE POLICY IF NOT EXISTS "Ver manutencoes" ON manutencoes
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -150,7 +140,7 @@ CREATE POLICY "Ver manutencoes" ON manutencoes
     )
   );
 
-CREATE POLICY "Criar manutencoes" ON manutencoes
+CREATE POLICY IF NOT EXISTS "Criar manutencoes" ON manutencoes
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM motos
@@ -159,7 +149,7 @@ CREATE POLICY "Criar manutencoes" ON manutencoes
     )
   );
 
-CREATE POLICY "Atualizar manutencoes" ON manutencoes
+CREATE POLICY IF NOT EXISTS "Atualizar manutencoes" ON manutencoes
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -168,7 +158,7 @@ CREATE POLICY "Atualizar manutencoes" ON manutencoes
     )
   );
 
-CREATE POLICY "Deletar manutencoes" ON manutencoes
+CREATE POLICY IF NOT EXISTS "Deletar manutencoes" ON manutencoes
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -178,10 +168,7 @@ CREATE POLICY "Deletar manutencoes" ON manutencoes
   );
 
 -- Políticas RLS para registros_manutencao (simplificadas)
-DROP POLICY IF EXISTS "Usuários veem registros das suas motos" ON registros_manutencao;
-DROP POLICY IF EXISTS "Usuários criam registros nas suas motos" ON registros_manutencao;
-
-CREATE POLICY "Ver registros" ON registros_manutencao
+CREATE POLICY IF NOT EXISTS "Ver registros" ON registros_manutencao
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -190,7 +177,7 @@ CREATE POLICY "Ver registros" ON registros_manutencao
     )
   );
 
-CREATE POLICY "Criar registros" ON registros_manutencao
+CREATE POLICY IF NOT EXISTS "Criar registros" ON registros_manutencao
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM motos
@@ -200,30 +187,20 @@ CREATE POLICY "Criar registros" ON registros_manutencao
   );
 
 -- Políticas RLS para trilhas (simplificadas)
-DROP POLICY IF EXISTS "Usuários veem trilhas das suas motos" ON trilhas;
-DROP POLICY IF EXISTS "Usuários criam trilhas nas suas motos" ON trilhas;
-DROP POLICY IF EXISTS "Usuários atualizam suas trilhas" ON trilhas;
-DROP POLICY IF EXISTS "Usuários deletam suas trilhas" ON trilhas;
-
-CREATE POLICY "Ver trilhas" ON trilhas
+CREATE POLICY IF NOT EXISTS "Ver trilhas" ON trilhas
   FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Criar trilhas" ON trilhas
+CREATE POLICY IF NOT EXISTS "Criar trilhas" ON trilhas
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Atualizar trilhas" ON trilhas
+CREATE POLICY IF NOT EXISTS "Atualizar trilhas" ON trilhas
   FOR UPDATE USING (auth.uid() = user_id);
 
-CREATE POLICY "Deletar trilhas" ON trilhas
+CREATE POLICY IF NOT EXISTS "Deletar trilhas" ON trilhas
   FOR DELETE USING (auth.uid() = user_id);
 
 -- Políticas RLS para liberacoes_mecanico (simplificadas)
-DROP POLICY IF EXISTS "Pilotos veem suas liberações" ON liberacoes_mecanico;
-DROP POLICY IF EXISTS "Pilotos criam liberações" ON liberacoes_mecanico;
-DROP POLICY IF EXISTS "Pilotos atualizam liberações" ON liberacoes_mecanico;
-DROP POLICY IF EXISTS "Pilotos deletam liberações" ON liberacoes_mecanico;
-
-CREATE POLICY "Ver liberacoes" ON liberacoes_mecanico
+CREATE POLICY IF NOT EXISTS "Ver liberacoes" ON liberacoes_mecanico
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -233,7 +210,7 @@ CREATE POLICY "Ver liberacoes" ON liberacoes_mecanico
     mecanico_id = auth.uid()
   );
 
-CREATE POLICY "Criar liberacoes" ON liberacoes_mecanico
+CREATE POLICY IF NOT EXISTS "Criar liberacoes" ON liberacoes_mecanico
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM motos
@@ -242,7 +219,7 @@ CREATE POLICY "Criar liberacoes" ON liberacoes_mecanico
     )
   );
 
-CREATE POLICY "Atualizar liberacoes" ON liberacoes_mecanico
+CREATE POLICY IF NOT EXISTS "Atualizar liberacoes" ON liberacoes_mecanico
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM motos
@@ -251,7 +228,7 @@ CREATE POLICY "Atualizar liberacoes" ON liberacoes_mecanico
     )
   );
 
-CREATE POLICY "Deletar liberacoes" ON liberacoes_mecanico
+CREATE POLICY IF NOT EXISTS "Deletar liberacoes" ON liberacoes_mecanico
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM motos
