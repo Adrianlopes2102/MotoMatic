@@ -120,10 +120,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profile) return false
     if (profile.role === 'admin') return true
     if (profile.subscription_status === 'active') return true
-    if (profile.subscription_status === 'trial' && profile.trial_ends_at) {
+
+    // Se está em trial, verifica a data
+    if (profile.subscription_status === 'trial') {
+      if (!profile.trial_ends_at) return true // Se não tem data de término, libera
       const trialEnd = new Date(profile.trial_ends_at)
-      return trialEnd > new Date()
+      const now = new Date()
+      return trialEnd > now
     }
+
     return false
   }
 

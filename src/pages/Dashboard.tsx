@@ -78,6 +78,15 @@ export default function Dashboard() {
     navigate('/login')
   }
 
+  // Aguarda o profile carregar antes de verificar a assinatura
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <p className="text-white">Carregando...</p>
+      </div>
+    )
+  }
+
   if (!isSubscriptionActive() && profile?.role !== 'admin') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 via-red-500 to-yellow-500 flex items-center justify-center p-4">
