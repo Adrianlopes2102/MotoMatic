@@ -153,12 +153,6 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-white">
-              <Bell className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-white" onClick={() => navigate('/settings')}>
-              <Settings className="h-5 w-5" />
-            </Button>
             <Button variant="ghost" size="icon" className="text-white" onClick={handleSignOut}>
               <LogOut className="h-5 w-5" />
             </Button>
