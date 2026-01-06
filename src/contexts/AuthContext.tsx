@@ -64,7 +64,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        // Se o perfil não existe, cria um perfil padrão
+        if (error.code === 'PGRST116') {
+          const { data: authUser } = await supabase.auth.getUser()
+          if (authUser.user) {
+            const trialEndsAt = new Date()
+            trialEndsAt.setDate(trialEndsAt.getDate() + 7)
+
+            const { data: newProfile, error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: userId,
+                email: authUser.user.email!,
+                name: authUser.user.email?.split('@')[0] || 'Usuário',
+                role: 'piloto',
+                trial_ends_at: trialEndsAt.toISOString(),
+                subscription_status: 'trial',
+                subscription_plan: 'free',
+              })
+              .select()
+              .single()
+
+            if (insertError) throw insertError
+            setProfile(newProfile)
+            return
+          }
+        }
+        throw error
+      }
       setProfile(data)
     } catch (error) {
       console.error('Erro ao carregar perfil:', error)
