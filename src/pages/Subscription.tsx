@@ -62,9 +62,11 @@ export default function Subscription() {
               <Button
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white"
                 size="lg"
-                onClick={() => handleSubscribe('piloto')}
+                asChild
               >
-                Assinar Plano Piloto
+                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=63f30d0416b84943924a7914a288e6bb" target="_blank" rel="noopener noreferrer">
+                  Assinar Plano Piloto
+                </a>
               </Button>
             </CardContent>
           </Card>
@@ -112,9 +114,11 @@ export default function Subscription() {
               <Button
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="lg"
-                onClick={() => handleSubscribe('mecanico')}
+                asChild
               >
-                Assinar Plano Mecânico
+                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=ec3c25dcb840450da01df6329e536804" target="_blank" rel="noopener noreferrer">
+                  Assinar Plano Mecânico
+                </a>
               </Button>
             </CardContent>
           </Card>
