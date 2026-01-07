@@ -6,6 +6,7 @@ import NovaMoto from '@/pages/NovaMoto'
 import DetalhesMoto from '@/pages/DetalhesMoto'
 import RegistrarTrilha from '@/pages/RegistrarTrilha'
 import RegistrarManutencao from '@/pages/RegistrarManutencao'
+import Subscription from '@/pages/Subscription'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -25,6 +26,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/upgrade" element={<Subscription />} />
       <Route
         path="/"
         element={
