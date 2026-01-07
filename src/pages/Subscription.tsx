@@ -27,7 +27,7 @@ export default function Subscription() {
             <CardHeader className="text-center pb-8">
               <CardTitle className="text-2xl mb-2">Piloto</CardTitle>
               <div className="mt-4">
-                <span className="text-5xl font-bold">R$ 9,90</span>
+                <span className="text-5xl font-bold">R$ 19,90</span>
                 <span className="text-gray-600">/mês</span>
               </div>
               <CardDescription className="mt-2">Ideal para pilotos individuais</CardDescription>
