@@ -6,9 +6,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Wrench } from 'lucide-react'
+import { ArrowLeft, Wrench, History, Calendar, Clock, DollarSign, CheckCircle } from 'lucide-react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 export default function RegistrarManutencao() {
   const { id: motoId, manutencaoId } = useParams()
@@ -18,6 +22,7 @@ export default function RegistrarManutencao() {
 
   const [moto, setMoto] = useState<any>(null)
   const [manutencao, setManutencao] = useState<any>(null)
+  const [registros, setRegistros] = useState<any[]>([])
   const [data, setData] = useState(new Date().toISOString().split('T')[0])
   const [horasMoto, setHorasMoto] = useState('')
   const [observacoes, setObservacoes] = useState('')
