@@ -36,9 +36,15 @@ export default function RegistrarManutencao() {
 
   const loadData = async () => {
     try {
-      const [motoData, manutencaoData] = await Promise.all([
+      const [motoData, manutencaoData, registrosData] = await Promise.all([
         supabase.from('motos').select('*').eq('id', motoId).single(),
         supabase.from('manutencoes').select('*').eq('id', manutencaoId).single(),
+        supabase
+          .from('registros_manutencao')
+          .select('*, users(name)')
+          .eq('manutencao_id', manutencaoId)
+          .order('data', { ascending: false })
+          .limit(5),
       ])
 
       if (motoData.error) throw motoData.error
@@ -46,6 +52,7 @@ export default function RegistrarManutencao() {
 
       setMoto(motoData.data)
       setManutencao(manutencaoData.data)
+      setRegistros(registrosData.data || [])
       setHorasMoto(motoData.data.horimetro.toString())
     } catch (error) {
       toast({ title: 'Erro ao carregar dados', variant: 'destructive' })
@@ -229,6 +236,87 @@ export default function RegistrarManutencao() {
             </form>
           </CardContent>
         </Card>
+
+        {registros.length > 0 && (
+          <Card className="bg-slate-800 border-slate-700 mt-6">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <History className="h-5 w-5 text-orange-500" />
+                <CardTitle className="text-white">Histórico de Manutenções</CardTitle>
+              </div>
+              <CardDescription className="text-slate-400">
+                Últimas {registros.length} manutenções realizadas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {registros.map((registro, index) => (
+                <div key={registro.id}>
+                  {index > 0 && <Separator className="my-4 bg-slate-700" />}
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="text-white font-medium">
+                            {format(new Date(registro.data), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {registro.horas_moto}h no horímetro
+                          </p>
+                        </div>
+                      </div>
+                      {registro.custo && (
+                        <Badge variant="secondary" className="gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          R$ {registro.custo.toFixed(2)}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {registro.pecas_trocadas && (
+                      <div className="bg-slate-900 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">Peças Trocadas</p>
+                        <p className="text-sm text-white">{registro.pecas_trocadas}</p>
+                      </div>
+                    )}
+
+                    {registro.observacoes && (
+                      <div className="bg-slate-900 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">Observações</p>
+                        <p className="text-sm text-slate-300">{registro.observacoes}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span>Realizado por: {registro.users?.name || 'Desconhecido'}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {manutencao?.intervalo_horas && (
+          <Card className="bg-gradient-to-br from-orange-900/20 to-yellow-900/20 border-orange-700 mt-6">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Clock className="h-5 w-5 text-orange-500 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-white font-medium mb-1">Próxima Manutenção</p>
+                  <p className="text-sm text-slate-300">
+                    Recomendada em <span className="text-orange-500 font-bold">
+                      {parseFloat(horasMoto) + manutencao.intervalo_horas}h
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Faltam aproximadamente {manutencao.intervalo_horas}h de uso
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
