@@ -1,5 +1,6 @@
 -- Migration: Create MotoTrack Pro Database
 -- Descrição: Cria todas as tabelas necessárias para o app funcionar
+-- Atualizado: Execute este SQL para criar o banco de dados completo
 
 -- Tabela de Usuários
 CREATE TABLE IF NOT EXISTS users (
