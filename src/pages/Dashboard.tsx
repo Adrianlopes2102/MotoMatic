@@ -45,29 +45,55 @@ export default function Dashboard() {
     if (!user) return
 
     try {
-      let query = supabase.from('motos').select('*')
-
       if (profile?.role === 'piloto') {
-        query = query.eq('user_id', user.id)
+        // Piloto vê suas próprias motos
+        const { data, error } = await supabase
+          .from('motos')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+        setMotos(data || [])
       } else if (profile?.role === 'mecanico') {
-        const { data: liberacoes } = await supabase
+        // Mecânico vê motos liberadas para ele
+        const { data: liberacoes, error: libError } = await supabase
           .from('liberacoes_mecanico')
           .select('moto_id')
           .eq('mecanico_id', user.id)
           .eq('ativo', true)
 
-        if (liberacoes && liberacoes.length > 0) {
-          const motoIds = liberacoes.map((l) => l.moto_id)
-          query = query.in('id', motoIds)
+        if (libError) {
+          console.error('Erro ao buscar liberações:', libError)
+          setMotos([])
+          return
         }
+
+        if (!liberacoes || liberacoes.length === 0) {
+          setMotos([])
+          return
+        }
+
+        const motoIds = liberacoes.map((l) => l.moto_id)
+
+        // Buscar motos liberadas
+        const { data, error } = await supabase
+          .from('motos')
+          .select('*')
+          .in('id', motoIds)
+          .order('created_at', { ascending: false })
+
+        if (error) {
+          console.error('Erro ao buscar motos:', error)
+          setMotos([])
+          return
+        }
+
+        setMotos(data || [])
       }
-
-      const { data, error } = await query.order('created_at', { ascending: false })
-
-      if (error) throw error
-      setMotos(data || [])
     } catch (error) {
       console.error('Erro ao carregar motos:', error)
+      setMotos([])
     } finally {
       setLoading(false)
     }

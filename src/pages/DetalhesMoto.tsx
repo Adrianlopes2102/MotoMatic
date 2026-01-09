@@ -163,14 +163,38 @@ export default function DetalhesMoto() {
 
   const loadLiberacoes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: liberacoesData, error } = await supabase
         .from('liberacoes_mecanico')
-        .select('*, users!liberacoes_mecanico_mecanico_id_fkey(name, email)')
+        .select('id, mecanico_id, valido_ate, ativo')
         .eq('moto_id', id)
         .eq('ativo', true)
 
       if (error) throw error
-      setLiberacoes(data || [])
+
+      if (!liberacoesData || liberacoesData.length === 0) {
+        setLiberacoes([])
+        return
+      }
+
+      // Buscar dados dos mecânicos usando a função RPC
+      const liberacoesComDados = await Promise.all(
+        liberacoesData.map(async (lib) => {
+          const { data: userData } = await supabase.rpc('buscar_usuario_por_id', {
+            user_id: lib.mecanico_id
+          })
+
+          const mecanicoInfo = Array.isArray(userData) && userData.length > 0
+            ? userData[0]
+            : userData
+
+          return {
+            ...lib,
+            users: mecanicoInfo || { name: 'Mecânico', email: 'Email não disponível' }
+          }
+        })
+      )
+
+      setLiberacoes(liberacoesComDados)
     } catch (error) {
       console.error('Erro ao carregar liberações:', error)
     }
