@@ -413,8 +413,8 @@ export default function DetalhesMoto() {
                     className="flex items-center justify-between p-3 bg-slate-900 rounded-lg"
                   >
                     <div>
-                      <p className="text-white font-medium">{liberacao.users.name}</p>
-                      <p className="text-xs text-slate-400">{liberacao.users.email}</p>
+                      <p className="text-white font-medium">{liberacao.users?.name || 'Mecânico'}</p>
+                      <p className="text-xs text-slate-400">{liberacao.users?.email || 'Email não disponível'}</p>
                       {liberacao.valido_ate && (
                         <p className="text-xs text-slate-500 mt-1">
                           Válido até: {format(new Date(liberacao.valido_ate), "dd/MM/yyyy")}

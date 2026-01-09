@@ -23,3 +23,5 @@ $$;
 
 -- Permitir que usuários autenticados usem esta função
 GRANT EXECUTE ON FUNCTION buscar_usuario_por_email(TEXT) TO authenticated;
+
+-- Função criada com sucesso
