@@ -1,5 +1,6 @@
 -- Criar função para buscar usuário por email (contorna RLS)
 -- Necessário para permitir que pilotos busquem mecânicos pelo email
+-- Atualizado: 2026-01-09
 
 CREATE OR REPLACE FUNCTION buscar_usuario_por_email(email_busca TEXT)
 RETURNS TABLE (
