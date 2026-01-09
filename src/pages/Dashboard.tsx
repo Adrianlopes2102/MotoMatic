@@ -56,35 +56,13 @@ export default function Dashboard() {
         if (error) throw error
         setMotos(data || [])
       } else if (profile?.role === 'mecanico') {
-        // Mecânico vê motos liberadas para ele
-        const { data: liberacoes, error: libError } = await supabase
-          .from('liberacoes_mecanico')
-          .select('moto_id')
-          .eq('mecanico_id', user.id)
-          .eq('ativo', true)
-
-        if (libError) {
-          console.error('Erro ao buscar liberações:', libError)
-          setMotos([])
-          return
-        }
-
-        if (!liberacoes || liberacoes.length === 0) {
-          setMotos([])
-          return
-        }
-
-        const motoIds = liberacoes.map((l) => l.moto_id)
-
-        // Buscar motos liberadas
-        const { data, error } = await supabase
-          .from('motos')
-          .select('*')
-          .in('id', motoIds)
-          .order('created_at', { ascending: false })
+        // Mecânico vê motos liberadas usando função RPC
+        const { data, error } = await supabase.rpc('get_motos_liberadas_mecanico', {
+          mecanico_uuid: user.id
+        })
 
         if (error) {
-          console.error('Erro ao buscar motos:', error)
+          console.error('Erro ao buscar motos liberadas:', error)
           setMotos([])
           return
         }
