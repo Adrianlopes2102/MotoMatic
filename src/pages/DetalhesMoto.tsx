@@ -9,6 +9,16 @@ import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
   ArrowLeft,
   Bike,
   Clock,
@@ -19,6 +29,8 @@ import {
   CheckCircle,
   AlertTriangle,
   MapPin,
+  UserPlus,
+  X,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -56,6 +68,17 @@ interface Trilha {
   observacoes?: string
 }
 
+interface Liberacao {
+  id: string
+  mecanico_id: string
+  valido_ate?: string
+  ativo: boolean
+  users: {
+    name: string
+    email: string
+  }
+}
+
 export default function DetalhesMoto() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -65,12 +88,17 @@ export default function DetalhesMoto() {
   const [moto, setMoto] = useState<Moto | null>(null)
   const [manutencoes, setManutencoes] = useState<Manutencao[]>([])
   const [trilhas, setTrilhas] = useState<Trilha[]>([])
+  const [liberacoes, setLiberacoes] = useState<Liberacao[]>([])
   const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [emailMecanico, setEmailMecanico] = useState('')
+  const [validoAte, setValidoAte] = useState('')
 
   useEffect(() => {
     loadMoto()
     loadManutencoes()
     loadTrilhas()
+    loadLiberacoes()
   }, [id])
 
   const loadMoto = async () => {
@@ -130,6 +158,89 @@ export default function DetalhesMoto() {
       setTrilhas(data || [])
     } catch (error) {
       console.error('Erro ao carregar trilhas:', error)
+    }
+  }
+
+  const loadLiberacoes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('liberacoes_mecanico')
+        .select('*, users!liberacoes_mecanico_mecanico_id_fkey(name, email)')
+        .eq('moto_id', id)
+        .eq('ativo', true)
+
+      if (error) throw error
+      setLiberacoes(data || [])
+    } catch (error) {
+      console.error('Erro ao carregar liberações:', error)
+    }
+  }
+
+  const liberarMecanico = async () => {
+    if (!emailMecanico.trim()) {
+      toast({ title: 'Digite o email do mecânico', variant: 'destructive' })
+      return
+    }
+
+    try {
+      // Buscar mecânico pelo email usando RPC para contornar RLS
+      const { data: mecanico, error: mecanicoError } = await supabase.rpc('buscar_usuario_por_email', {
+        email_busca: emailMecanico.toLowerCase().trim()
+      })
+
+      if (mecanicoError) {
+        console.error('Erro ao buscar mecânico:', mecanicoError)
+        toast({ title: 'Mecânico não encontrado', description: 'Verifique o email digitado', variant: 'destructive' })
+        return
+      }
+
+      if (!mecanico || mecanico.length === 0) {
+        toast({ title: 'Mecânico não encontrado', description: 'Verifique o email digitado', variant: 'destructive' })
+        return
+      }
+
+      const mecanicoData = Array.isArray(mecanico) ? mecanico[0] : mecanico
+
+      if (mecanicoData.role !== 'mecanico') {
+        toast({ title: 'Erro', description: 'Este usuário não é um mecânico', variant: 'destructive' })
+        return
+      }
+
+      // Criar liberação
+      const { error } = await supabase.from('liberacoes_mecanico').insert({
+        moto_id: id,
+        mecanico_id: mecanicoData.id,
+        liberado_por: user?.id,
+        valido_ate: validoAte || null,
+        ativo: true,
+      })
+
+      if (error) throw error
+
+      toast({ title: 'Mecânico liberado com sucesso!' })
+      setDialogOpen(false)
+      setEmailMecanico('')
+      setValidoAte('')
+      loadLiberacoes()
+    } catch (error: any) {
+      console.error('Erro completo:', error)
+      toast({ title: 'Erro ao liberar mecânico', description: error.message, variant: 'destructive' })
+    }
+  }
+
+  const removerLiberacao = async (liberacaoId: string) => {
+    try {
+      const { error } = await supabase
+        .from('liberacoes_mecanico')
+        .update({ ativo: false })
+        .eq('id', liberacaoId)
+
+      if (error) throw error
+
+      toast({ title: 'Liberação removida com sucesso!' })
+      loadLiberacoes()
+    } catch (error: any) {
+      toast({ title: 'Erro ao remover liberação', description: error.message, variant: 'destructive' })
     }
   }
 
@@ -228,14 +339,102 @@ export default function DetalhesMoto() {
                 <p className="text-4xl font-bold text-orange-500">{moto.horimetro}h</p>
               </div>
               {profile?.role === 'piloto' && (
-                <Button onClick={() => navigate(`/motos/${moto.id}/trilha`)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Registrar Trilha
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={() => navigate(`/motos/${moto.id}/trilha`)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Registrar Trilha
+                  </Button>
+                  <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Liberar Mecânico
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-slate-800 border-slate-700">
+                      <DialogHeader>
+                        <DialogTitle className="text-white">Liberar Acesso ao Mecânico</DialogTitle>
+                        <DialogDescription className="text-slate-400">
+                          Digite o email do mecânico que terá acesso a esta moto
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="email" className="text-white">
+                            Email do Mecânico
+                          </Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="mecanico@exemplo.com"
+                            value={emailMecanico}
+                            onChange={(e) => setEmailMecanico(e.target.value)}
+                            className="bg-slate-900 border-slate-600 text-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="valido-ate" className="text-white">
+                            Válido até (opcional)
+                          </Label>
+                          <Input
+                            id="valido-ate"
+                            type="date"
+                            value={validoAte}
+                            onChange={(e) => setValidoAte(e.target.value)}
+                            className="bg-slate-900 border-slate-600 text-white"
+                          />
+                          <p className="text-xs text-slate-400">Deixe em branco para acesso permanente</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={liberarMecanico}>Liberar Acesso</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
+
+        {profile?.role === 'piloto' && liberacoes.length > 0 && (
+          <Card className="bg-slate-800 border-slate-700 mb-6">
+            <CardHeader>
+              <CardTitle className="text-white text-lg">Mecânicos com Acesso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {liberacoes.map((liberacao) => (
+                  <div
+                    key={liberacao.id}
+                    className="flex items-center justify-between p-3 bg-slate-900 rounded-lg"
+                  >
+                    <div>
+                      <p className="text-white font-medium">{liberacao.users.name}</p>
+                      <p className="text-xs text-slate-400">{liberacao.users.email}</p>
+                      {liberacao.valido_ate && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Válido até: {format(new Date(liberacao.valido_ate), "dd/MM/yyyy")}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removerLiberacao(liberacao.id)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue="manutencoes" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-slate-800">
