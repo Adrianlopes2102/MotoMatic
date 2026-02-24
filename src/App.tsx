@@ -7,6 +7,9 @@ import DetalhesMoto from '@/pages/DetalhesMoto'
 import RegistrarTrilha from '@/pages/RegistrarTrilha'
 import RegistrarManutencao from '@/pages/RegistrarManutencao'
 import Subscription from '@/pages/Subscription'
+import SubscriptionSuccess from '@/pages/SubscriptionSuccess'
+import SubscriptionPending from '@/pages/SubscriptionPending'
+import SubscriptionFailure from '@/pages/SubscriptionFailure'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -27,6 +30,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/upgrade" element={<Subscription />} />
+      <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+      <Route path="/subscription/pending" element={<SubscriptionPending />} />
+      <Route path="/subscription/failure" element={<SubscriptionFailure />} />
       <Route
         path="/"
         element={
