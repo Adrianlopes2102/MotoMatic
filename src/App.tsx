@@ -10,6 +10,7 @@ import Subscription from '@/pages/Subscription'
 import SubscriptionSuccess from '@/pages/SubscriptionSuccess'
 import SubscriptionPending from '@/pages/SubscriptionPending'
 import SubscriptionFailure from '@/pages/SubscriptionFailure'
+import UnlockPage from '@/pages/admin/UnlockPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -29,6 +30,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/admin/unlock" element={<UnlockPage />} />
       <Route path="/upgrade" element={<Subscription />} />
       <Route path="/subscription/success" element={<SubscriptionSuccess />} />
       <Route path="/subscription/pending" element={<SubscriptionPending />} />
