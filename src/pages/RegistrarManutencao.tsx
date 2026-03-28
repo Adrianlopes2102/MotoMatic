@@ -41,7 +41,7 @@ export default function RegistrarManutencao() {
         supabase.from('manutencoes').select('*').eq('id', manutencaoId).single(),
         supabase
           .from('registros_manutencao')
-          .select('*, users(name)')
+          .select('*')
           .eq('manutencao_id', manutencaoId)
           .order('data', { ascending: false })
           .limit(5),
@@ -287,9 +287,6 @@ export default function RegistrarManutencao() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span>Realizado por: {registro.users?.name || 'Desconhecido'}</span>
-                    </div>
                   </div>
                 </div>
               ))}

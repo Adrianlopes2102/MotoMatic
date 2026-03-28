@@ -33,7 +33,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   ArrowLeft,
   Bike,
-  Clock,
   Wrench,
   History,
   Plus,
@@ -45,7 +44,6 @@ import {
   X,
   Pencil,
   Trash2,
-  Settings,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'

@@ -6,8 +6,6 @@ import { Progress } from '@/components/ui/progress'
 import { Bike, Plus, LogOut, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 
 interface Moto {
   id: string
