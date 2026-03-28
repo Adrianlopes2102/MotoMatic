@@ -22,6 +22,7 @@ interface AuthContextType {
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   isSubscriptionActive: () => boolean
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -164,6 +165,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error
   }
 
+  const refreshProfile = async () => {
+    if (user) {
+      await loadProfile(user.id)
+    }
+  }
+
   const isSubscriptionActive = () => {
     if (!profile) return false
     if (profile.role === 'admin') return true
@@ -191,6 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         resetPassword,
         isSubscriptionActive,
+        refreshProfile,
       }}
     >
       {children}

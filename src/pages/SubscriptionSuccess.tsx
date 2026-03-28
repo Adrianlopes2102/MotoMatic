@@ -4,12 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function SubscriptionSuccess() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [updating, setUpdating] = useState(true)
   const [error, setError] = useState(false)
+  const { refreshProfile } = useAuth()
 
   const paymentId = searchParams.get('payment_id')
   const status = searchParams.get('status')
@@ -55,6 +57,9 @@ export default function SubscriptionSuccess() {
       if (updateError) {
         console.error('Erro ao atualizar assinatura:', updateError)
         setError(true)
+      } else {
+        // Recarrega o perfil no contexto para refletir o novo status de assinatura
+        await refreshProfile()
       }
     } catch (err) {
       console.error('Erro ao processar confirmação:', err)

@@ -64,7 +64,7 @@ export default function Subscription() {
                 size="lg"
                 asChild
               >
-                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=63f30d0416b84943924a7914a288e6bb" target="_blank" rel="noopener noreferrer">
+                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=63f30d0416b84943924a7914a288e6bb">
                   Assinar Plano Piloto
                 </a>
               </Button>
@@ -116,7 +116,7 @@ export default function Subscription() {
                 size="lg"
                 asChild
               >
-                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=ec3c25dcb840450da01df6329e536804" target="_blank" rel="noopener noreferrer">
+                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=ec3c25dcb840450da01df6329e536804">
                   Assinar Plano Mecânico
                 </a>
               </Button>
