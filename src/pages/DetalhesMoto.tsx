@@ -584,14 +584,14 @@ export default function DetalhesMoto() {
                 <p className="text-4xl font-bold text-orange-500">{moto.horimetro}h</p>
               </div>
               {profile?.role === 'piloto' && (
-                <div className="flex gap-2">
-                  <Button onClick={() => navigate(`/motos/${moto.id}/trilha`)}>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-center">
+                  <Button className="w-full sm:w-auto" onClick={() => navigate(`/motos/${moto.id}/trilha`)}>
                     <Plus className="h-4 w-4 mr-2" />
                     Registrar Trilha
                   </Button>
                   <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline">
+                      <Button variant="outline" className="w-full sm:w-auto">
                         <UserPlus className="h-4 w-4 mr-2" />
                         Liberar Mecânico
                       </Button>
