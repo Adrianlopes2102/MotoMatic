@@ -15,14 +15,12 @@ export default function SubscriptionSuccess() {
 
   const paymentId = searchParams.get('payment_id')
   const status = searchParams.get('status')
-  const preapprovalId = searchParams.get('preapproval_id')
-  const planId = searchParams.get('preapproval_plan_id')
 
   useEffect(() => {
-    updateSubscription()
+    activateSubscription()
   }, [])
 
-  const updateSubscription = async () => {
+  const activateSubscription = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -31,50 +29,19 @@ export default function SubscriptionSuccess() {
         return
       }
 
-      // Usa a Edge Function com service role para garantir que bypassa RLS
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const res = await fetch(`${supabaseUrl}/functions/v1/activate-subscription`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          payment_id: paymentId,
-          status: status || 'approved',
-          plan_id: planId
-        })
-      })
+      const userId = session.user.id
 
-      const data = await res.json()
-
-      if (!res.ok || data.error) {
-        console.error('Erro ao ativar assinatura via edge function:', data.error)
-        // Fallback: tenta atualizar diretamente pelo cliente
-        await fallbackUpdate(session.user.id)
-        return
-      }
-
-      // Recarrega o perfil no contexto para refletir o novo status
-      await refreshProfile()
-    } catch (err) {
-      console.error('Erro ao processar confirmação:', err)
-      setError(true)
-    } finally {
-      setUpdating(false)
-    }
-  }
-
-  const fallbackUpdate = async (userId: string) => {
-    try {
+      // Busca o perfil para pegar o plano pendente ou determinar pelo role
       const { data: profile } = await supabase
         .from('users')
-        .select('role')
+        .select('role, pending_plan')
         .eq('id', userId)
         .single()
 
-      const plan = profile?.role === 'mecanico' ? 'oficina' : 'pro_piloto'
+      // Usa o pending_plan salvo quando clicou em Assinar, ou determina pelo role
+      const plan = (profile as any)?.pending_plan
+        || (profile?.role === 'mecanico' ? 'oficina' : 'pro_piloto')
+
       const expiresAt = new Date()
       expiresAt.setMonth(expiresAt.getMonth() + 1)
 
@@ -86,16 +53,21 @@ export default function SubscriptionSuccess() {
           subscription_expires_at: expiresAt.toISOString(),
           last_payment_id: paymentId,
           last_payment_status: status || 'approved',
+          pending_plan: null,
         })
         .eq('id', userId)
 
-      if (!updateError) {
-        await refreshProfile()
-      } else {
+      if (updateError) {
+        console.error('Erro ao ativar assinatura:', updateError)
         setError(true)
+      } else {
+        await refreshProfile()
       }
-    } catch {
+    } catch (err) {
+      console.error('Erro ao processar confirmação:', err)
       setError(true)
+    } finally {
+      setUpdating(false)
     }
   }
 
@@ -138,7 +110,7 @@ export default function SubscriptionSuccess() {
             <div className="bg-yellow-950 border border-yellow-800 rounded-lg p-4 text-sm text-yellow-300">
               <p className="font-medium">Pagamento recebido!</p>
               <p className="mt-1 text-xs">
-                Seu pagamento foi processado. Faça logout e login novamente para liberar o acesso.
+                Seu pagamento foi processado. Acesse o app normalmente — seu acesso já está liberado.
               </p>
             </div>
           )}
