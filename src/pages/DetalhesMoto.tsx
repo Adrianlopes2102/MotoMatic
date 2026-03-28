@@ -31,6 +31,7 @@ import {
   MapPin,
   UserPlus,
   X,
+  Filter,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -68,6 +69,21 @@ interface Trilha {
   observacoes?: string
 }
 
+interface RegistroManutencao {
+  id: string
+  data: string
+  horas_moto: number
+  pecas_trocadas?: string
+  custo?: number
+  observacoes?: string
+  manutencao_nome?: string
+  manutencao_categoria?: string
+}
+
+type EventoHistorico =
+  | { tipo: 'trilha'; data: string; item: Trilha }
+  | { tipo: 'manutencao'; data: string; item: RegistroManutencao }
+
 interface Liberacao {
   id: string
   mecanico_id: string
@@ -89,6 +105,7 @@ export default function DetalhesMoto() {
   const [manutencoes, setManutencoes] = useState<Manutencao[]>([])
   const [trilhas, setTrilhas] = useState<Trilha[]>([])
   const [liberacoes, setLiberacoes] = useState<Liberacao[]>([])
+  const [registrosHistorico, setRegistrosHistorico] = useState<RegistroManutencao[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [emailMecanico, setEmailMecanico] = useState('')
@@ -99,6 +116,7 @@ export default function DetalhesMoto() {
     loadManutencoes()
     loadTrilhas()
     loadLiberacoes()
+    loadHistorico()
   }, [id])
 
   const loadMoto = async () => {
@@ -158,6 +176,34 @@ export default function DetalhesMoto() {
       setTrilhas(data || [])
     } catch (error) {
       console.error('Erro ao carregar trilhas:', error)
+    }
+  }
+
+  const loadHistorico = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('registros_manutencao')
+        .select(`
+          *,
+          manutencoes (
+            nome,
+            categoria
+          )
+        `)
+        .eq('moto_id', id)
+        .order('data', { ascending: false })
+
+      if (error) throw error
+
+      const registros = (data || []).map((r: any) => ({
+        ...r,
+        manutencao_nome: r.manutencoes?.nome,
+        manutencao_categoria: r.manutencoes?.categoria,
+      }))
+
+      setRegistrosHistorico(registros)
+    } catch (error) {
+      console.error('Erro ao carregar histórico:', error)
     }
   }
 
@@ -588,12 +634,113 @@ export default function DetalhesMoto() {
           </TabsContent>
 
           <TabsContent value="historico">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="py-12 text-center">
-                <History className="h-16 w-16 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400">Histórico completo em breve</p>
-              </CardContent>
-            </Card>
+            {registrosHistorico.length === 0 && trilhas.length === 0 ? (
+              <Card className="bg-slate-800 border-slate-700">
+                <CardContent className="py-12 text-center">
+                  <History className="h-16 w-16 text-slate-600 mx-auto mb-4" />
+                  <p className="text-slate-400">Nenhuma atividade registrada ainda</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Registre trilhas e manutenções para ver o histórico aqui
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {/* Combinar e ordenar por data */}
+                {[
+                  ...trilhas.map((t) => ({ tipo: 'trilha' as const, data: t.data, item: t })),
+                  ...registrosHistorico.map((r) => ({ tipo: 'manutencao' as const, data: r.data, item: r })),
+                ]
+                  .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                  .map((evento) => {
+                    if (evento.tipo === 'trilha') {
+                      const trilha = evento.item as Trilha
+                      return (
+                        <Card key={`trilha-${trilha.id}`} className="bg-slate-800 border-slate-700 border-l-4 border-l-orange-500">
+                          <CardContent className="py-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-orange-500/10 rounded-lg">
+                                  <MapPin className="h-4 w-4 text-orange-500" />
+                                </div>
+                                <div>
+                                  <p className="text-white font-medium">
+                                    {trilha.local || 'Trilha registrada'}
+                                  </p>
+                                  <p className="text-xs text-slate-400">
+                                    {format(new Date(trilha.data), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                  </p>
+                                  {trilha.observacoes && (
+                                    <p className="text-xs text-slate-500 mt-1">{trilha.observacoes}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right flex flex-col items-end gap-1">
+                                <Badge
+                                  variant={
+                                    trilha.tipo_uso === 'leve'
+                                      ? 'default'
+                                      : trilha.tipo_uso === 'medio'
+                                      ? 'secondary'
+                                      : 'destructive'
+                                  }
+                                >
+                                  {trilha.tipo_uso}
+                                </Badge>
+                                <span className="text-xs text-slate-400">{trilha.horas_uso}h de uso</span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    } else {
+                      const registro = evento.item as RegistroManutencao
+                      return (
+                        <Card key={`manutencao-${registro.id}`} className="bg-slate-800 border-slate-700 border-l-4 border-l-blue-500">
+                          <CardContent className="py-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 rounded-lg">
+                                  <Wrench className="h-4 w-4 text-blue-400" />
+                                </div>
+                                <div>
+                                  <p className="text-white font-medium">
+                                    {registro.manutencao_nome || 'Manutenção'}
+                                  </p>
+                                  <p className="text-xs text-slate-400">
+                                    {format(new Date(registro.data), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                    {registro.horas_moto ? ` • ${registro.horas_moto}h` : ''}
+                                  </p>
+                                  {registro.pecas_trocadas && (
+                                    <p className="text-xs text-slate-500 mt-1">
+                                      Peças: {registro.pecas_trocadas}
+                                    </p>
+                                  )}
+                                  {registro.observacoes && (
+                                    <p className="text-xs text-slate-500 mt-1">{registro.observacoes}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right flex flex-col items-end gap-1">
+                                {registro.manutencao_categoria && (
+                                  <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
+                                    {registro.manutencao_categoria}
+                                  </Badge>
+                                )}
+                                {registro.custo != null && registro.custo > 0 && (
+                                  <span className="text-xs text-green-400 font-medium">
+                                    R$ {registro.custo.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    }
+                  })}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
