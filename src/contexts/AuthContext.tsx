@@ -32,13 +32,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Timeout de segurança: se em 10s o loading não terminar, força false
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false)
+    }, 10000)
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
         loadProfile(session.user.id)
       } else {
+        clearTimeout(safetyTimeout)
         setLoading(false)
       }
+    }).catch(() => {
+      clearTimeout(safetyTimeout)
+      setLoading(false)
     })
 
     const {
@@ -53,7 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(safetyTimeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const loadProfile = async (userId: string) => {
