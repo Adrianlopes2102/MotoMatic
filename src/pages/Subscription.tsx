@@ -3,14 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Check } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 export default function Subscription() {
-  const { profile } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubscribe = (plan: string) => {
-    // Aqui você pode adicionar a lógica de pagamento futuramente
-    console.log(`Assinando o plano: ${plan}`)
+  const handleSubscribe = async (plan: string, url: string) => {
+    // Salva o plano pendente no banco antes de redirecionar
+    if (user) {
+      await supabase
+        .from('users')
+        .update({ pending_plan: plan })
+        .eq('id', user.id)
+    }
+    window.location.href = url
   }
 
   return (
@@ -62,11 +69,9 @@ export default function Subscription() {
               <Button
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white"
                 size="lg"
-                asChild
+                onClick={() => handleSubscribe('pro_piloto', 'https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=63f30d0416b84943924a7914a288e6bb')}
               >
-                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=63f30d0416b84943924a7914a288e6bb">
-                  Assinar Plano Piloto
-                </a>
+                Assinar Plano Piloto
               </Button>
             </CardContent>
           </Card>
@@ -114,11 +119,9 @@ export default function Subscription() {
               <Button
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="lg"
-                asChild
+                onClick={() => handleSubscribe('oficina', 'https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=ec3c25dcb840450da01df6329e536804')}
               >
-                <a href="https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=ec3c25dcb840450da01df6329e536804">
-                  Assinar Plano Mecânico
-                </a>
+                Assinar Plano Mecânico
               </Button>
             </CardContent>
           </Card>

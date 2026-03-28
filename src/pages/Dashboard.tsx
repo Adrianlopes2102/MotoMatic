@@ -17,7 +17,7 @@ interface Moto {
 }
 
 export default function Dashboard() {
-  const { user, profile, signOut, isSubscriptionActive } = useAuth()
+  const { user, profile, signOut, isSubscriptionActive, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const [motos, setMotos] = useState<Moto[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,6 +31,38 @@ export default function Dashboard() {
     }, 8000)
     return () => clearTimeout(timer)
   }, [profile])
+
+  // Verifica e ativa assinatura pendente quando o usuário retorna ao app
+  useEffect(() => {
+    if (!user || !profile) return
+    if (profile.subscription_status === 'active') return
+
+    const pendingPlan = (profile as any).pending_plan
+    if (pendingPlan) {
+      activatePendingSubscription(pendingPlan)
+    }
+  }, [user, profile])
+
+  const activatePendingSubscription = async (plan: string) => {
+    if (!user) return
+    const expiresAt = new Date()
+    expiresAt.setMonth(expiresAt.getMonth() + 1)
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        subscription_status: 'active',
+        subscription_plan: plan,
+        subscription_expires_at: expiresAt.toISOString(),
+        last_payment_status: 'approved',
+        pending_plan: null,
+      })
+      .eq('id', user.id)
+
+    if (!error) {
+      await refreshProfile()
+    }
+  }
 
   useEffect(() => {
     if (!user) {
