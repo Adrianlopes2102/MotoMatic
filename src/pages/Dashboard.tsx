@@ -24,6 +24,15 @@ export default function Dashboard() {
   const [motos, setMotos] = useState<Moto[]>([])
   const [loading, setLoading] = useState(true)
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
+  const [profileTimeout, setProfileTimeout] = useState(false)
+
+  // Timeout de segurança: se o profile não carregar em 8s, mostra erro
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!profile) setProfileTimeout(true)
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [profile])
 
   useEffect(() => {
     if (!user) {
@@ -84,6 +93,17 @@ export default function Dashboard() {
 
   // Aguarda o profile carregar antes de verificar a assinatura
   if (!profile) {
+    if (profileTimeout) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+          <div className="text-center">
+            <p className="text-white text-lg mb-2">Erro ao carregar perfil</p>
+            <p className="text-slate-400 text-sm mb-6">Verifique sua conexão e tente novamente</p>
+            <Button onClick={() => window.location.reload()}>Recarregar</Button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <p className="text-white">Carregando...</p>

@@ -86,12 +86,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .select()
               .single()
 
-            if (insertError) throw insertError
+            if (insertError) {
+              console.error('Erro ao criar perfil:', insertError)
+              // Mesmo com erro, libera o loading para não travar
+              setLoading(false)
+              return
+            }
             setProfile(newProfile)
             return
           }
         }
-        throw error
+        // Qualquer outro erro: loga e libera o loading
+        console.error('Erro ao carregar perfil:', error)
+        setLoading(false)
+        return
       }
       setProfile(data)
     } catch (error) {
