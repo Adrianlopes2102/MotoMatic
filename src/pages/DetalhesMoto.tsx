@@ -44,6 +44,8 @@ import {
   X,
   Pencil,
   Trash2,
+  Camera,
+  Upload,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -130,6 +132,19 @@ export default function DetalhesMoto() {
   const [editTipo, setEditTipo] = useState('')
   const [editHorimetro, setEditHorimetro] = useState('')
   const [savingMoto, setSavingMoto] = useState(false)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+  // Estados para adicionar manutenção
+  const [addManutencaoOpen, setAddManutencaoOpen] = useState(false)
+  const [novoManutNome, setNovoManutNome] = useState('')
+  const [novoManutCategoria, setNovoManutCategoria] = useState('Motor')
+  const [novoManutIntervaloHoras, setNovoManutIntervaloHoras] = useState('')
+  const [novoManutTipoUso, setNovoManutTipoUso] = useState('medio')
+  const [savingManut, setSavingManut] = useState(false)
+  // Estados para editar horas de manutenção
+  const [editManutOpen, setEditManutOpen] = useState(false)
+  const [editManutId, setEditManutId] = useState<string | null>(null)
+  const [editManutIntervalo, setEditManutIntervalo] = useState('')
+  const [savingEditManut, setSavingEditManut] = useState(false)
 
   useEffect(() => {
     loadMoto()
@@ -464,6 +479,99 @@ export default function DetalhesMoto() {
     }
   }
 
+  const uploadFotoMoto = async (file: File) => {
+    if (!moto) return
+    setUploadingFoto(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `${moto.id}-${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('moto-photos')
+        .upload(fileName, file, { upsert: true })
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage.from('moto-photos').getPublicUrl(fileName)
+      const { error: updateError } = await supabase
+        .from('motos')
+        .update({ foto_url: urlData.publicUrl })
+        .eq('id', moto.id)
+      if (updateError) throw updateError
+
+      toast({ title: 'Foto atualizada com sucesso!' })
+      loadMoto()
+    } catch (error: any) {
+      toast({ title: 'Erro ao enviar foto', description: error.message, variant: 'destructive' })
+    } finally {
+      setUploadingFoto(false)
+    }
+  }
+
+  const adicionarManutencao = async () => {
+    if (!novoManutNome.trim() || !novoManutIntervaloHoras) {
+      toast({ title: 'Preencha o nome e o intervalo de horas', variant: 'destructive' })
+      return
+    }
+    if (!moto) return
+    setSavingManut(true)
+    try {
+      const { error } = await supabase.from('manutencoes').insert({
+        moto_id: moto.id,
+        nome: novoManutNome.trim(),
+        categoria: novoManutCategoria,
+        intervalo_horas: parseInt(novoManutIntervaloHoras),
+        tipo_uso: novoManutTipoUso,
+      })
+      if (error) throw error
+      toast({ title: 'Manutenção adicionada!' })
+      setAddManutencaoOpen(false)
+      setNovoManutNome('')
+      setNovoManutCategoria('Motor')
+      setNovoManutIntervaloHoras('')
+      setNovoManutTipoUso('medio')
+      loadManutencoes()
+    } catch (error: any) {
+      toast({ title: 'Erro ao adicionar manutenção', description: error.message, variant: 'destructive' })
+    } finally {
+      setSavingManut(false)
+    }
+  }
+
+  const abrirEdicaoManutencao = (manutencao: Manutencao) => {
+    setEditManutId(manutencao.id)
+    setEditManutIntervalo(manutencao.intervalo_horas?.toString() || '')
+    setEditManutOpen(true)
+  }
+
+  const salvarEdicaoManutencao = async () => {
+    if (!editManutId || !editManutIntervalo) return
+    setSavingEditManut(true)
+    try {
+      const { error } = await supabase
+        .from('manutencoes')
+        .update({ intervalo_horas: parseInt(editManutIntervalo) })
+        .eq('id', editManutId)
+      if (error) throw error
+      toast({ title: 'Intervalo atualizado!' })
+      setEditManutOpen(false)
+      loadManutencoes()
+    } catch (error: any) {
+      toast({ title: 'Erro ao atualizar intervalo', description: error.message, variant: 'destructive' })
+    } finally {
+      setSavingEditManut(false)
+    }
+  }
+
+  const excluirManutencao = async (manutencaoId: string) => {
+    try {
+      const { error } = await supabase.from('manutencoes').delete().eq('id', manutencaoId)
+      if (error) throw error
+      toast({ title: 'Manutenção excluída!' })
+      loadManutencoes()
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir manutenção', description: error.message, variant: 'destructive' })
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
@@ -575,9 +683,149 @@ export default function DetalhesMoto() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal Adicionar Manutenção */}
+      <Dialog open={addManutencaoOpen} onOpenChange={setAddManutencaoOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Adicionar Manutenção</DialogTitle>
+            <DialogDescription className="text-slate-400">Crie uma nova manutenção para esta moto</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-white">Nome</Label>
+              <Input
+                value={novoManutNome}
+                onChange={(e) => setNovoManutNome(e.target.value)}
+                placeholder="Ex: Troca de Óleo Motor"
+                className="bg-slate-900 border-slate-600 text-white"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-white">Categoria</Label>
+                <Select value={novoManutCategoria} onValueChange={setNovoManutCategoria}>
+                  <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Motor">Motor</SelectItem>
+                    <SelectItem value="Transmissão">Transmissão</SelectItem>
+                    <SelectItem value="Suspensão">Suspensão</SelectItem>
+                    <SelectItem value="Freios">Freios</SelectItem>
+                    <SelectItem value="Chassi">Chassi</SelectItem>
+                    <SelectItem value="Elétrica">Elétrica</SelectItem>
+                    <SelectItem value="Outros">Outros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white">Intervalo (horas)</Label>
+                <Input
+                  type="number"
+                  value={novoManutIntervaloHoras}
+                  onChange={(e) => setNovoManutIntervaloHoras(e.target.value)}
+                  placeholder="Ex: 15"
+                  className="bg-slate-900 border-slate-600 text-white"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white">Tipo de Uso</Label>
+              <Select value={novoManutTipoUso} onValueChange={setNovoManutTipoUso}>
+                <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="leve">Leve</SelectItem>
+                  <SelectItem value="medio">Médio</SelectItem>
+                  <SelectItem value="pesado">Pesado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setAddManutencaoOpen(false)} className="border-slate-600 text-white">Cancelar</Button>
+            <Button onClick={adicionarManutencao} disabled={savingManut}>
+              {savingManut ? 'Salvando...' : 'Adicionar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Intervalo de Manutenção */}
+      <Dialog open={editManutOpen} onOpenChange={setEditManutOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Editar Intervalo</DialogTitle>
+            <DialogDescription className="text-slate-400">Altere o intervalo de horas desta manutenção</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-white">Intervalo (horas)</Label>
+              <Input
+                type="number"
+                value={editManutIntervalo}
+                onChange={(e) => setEditManutIntervalo(e.target.value)}
+                placeholder="Ex: 15"
+                className="bg-slate-900 border-slate-600 text-white"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setEditManutOpen(false)} className="border-slate-600 text-white">Cancelar</Button>
+            <Button onClick={salvarEdicaoManutencao} disabled={savingEditManut}>
+              {savingEditManut ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="container mx-auto px-4 py-8">
         <Card className="bg-slate-800 border-slate-700 mb-6">
           <CardContent className="pt-6">
+            {/* Foto da moto */}
+            {(moto.foto_url || profile?.role === 'piloto') && (
+              <div className="mb-6">
+                <div className="relative w-full h-48 rounded-lg overflow-hidden bg-slate-900 border border-slate-700">
+                  {moto.foto_url ? (
+                    <img
+                      src={moto.foto_url}
+                      alt={`${moto.marca} ${moto.modelo}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-slate-500">
+                      <Camera className="h-12 w-12" />
+                      <p className="text-sm">Sem foto</p>
+                    </div>
+                  )}
+                  {profile?.role === 'piloto' && (
+                    <label className="absolute bottom-2 right-2 cursor-pointer">
+                      <div className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                        {uploadingFoto ? (
+                          <span>Enviando...</span>
+                        ) : (
+                          <>
+                            <Upload className="h-3.5 w-3.5" />
+                            <span>{moto.foto_url ? 'Trocar foto' : 'Adicionar foto'}</span>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingFoto}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) uploadFotoMoto(file)
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-400 text-sm">Horímetro Atual</p>
@@ -689,17 +937,29 @@ export default function DetalhesMoto() {
           </TabsList>
 
           <TabsContent value="manutencoes" className="space-y-4">
+            {(profile?.role === 'piloto' || profile?.role === 'mecanico') && (
+              <Button
+                variant="outline"
+                className="w-full border-dashed border-slate-600 text-slate-400 hover:text-white hover:border-orange-500"
+                onClick={() => setAddManutencaoOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Manutenção
+              </Button>
+            )}
             {manutencoes.length === 0 ? (
               <Card className="bg-slate-800 border-slate-700">
                 <CardContent className="py-12 text-center">
                   <Wrench className="h-16 w-16 text-slate-600 mx-auto mb-4" />
                   <p className="text-slate-400 mb-4">Nenhuma manutenção cadastrada</p>
-                  <Button onClick={criarManutencoesIniciais}>Criar Manutenções Padrão</Button>
+                  {profile?.role === 'piloto' && (
+                    <Button onClick={criarManutencoesIniciais}>Criar Manutenções Padrão</Button>
+                  )}
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3">
-                {['Motor', 'Transmissão', 'Suspensão', 'Freios', 'Chassi'].map((categoria) => {
+                {['Motor', 'Transmissão', 'Suspensão', 'Freios', 'Chassi', 'Elétrica', 'Outros'].map((categoria) => {
                   const manutencoesCategoria = manutencoes.filter((m) => m.categoria === categoria)
                   if (manutencoesCategoria.length === 0) return null
 
@@ -714,12 +974,14 @@ export default function DetalhesMoto() {
                           return (
                             <Card
                               key={manutencao.id}
-                              className="bg-slate-800 border-slate-700 hover:border-orange-500 transition-all cursor-pointer"
-                              onClick={() => navigate(`/motos/${moto.id}/manutencao/${manutencao.id}`)}
+                              className="bg-slate-800 border-slate-700 hover:border-orange-500 transition-all"
                             >
                               <CardContent className="py-4">
                                 <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-3">
+                                  <div
+                                    className="flex items-center gap-3 flex-1 cursor-pointer"
+                                    onClick={() => navigate(`/motos/${moto.id}/manutencao/${manutencao.id}`)}
+                                  >
                                     <Icon
                                       className={`h-5 w-5 ${
                                         status.color === 'green'
@@ -736,17 +998,57 @@ export default function DetalhesMoto() {
                                       </p>
                                     </div>
                                   </div>
-                                  <Badge
-                                    variant={
-                                      status.color === 'green'
-                                        ? 'default'
-                                        : status.color === 'yellow'
-                                        ? 'secondary'
-                                        : 'destructive'
-                                    }
-                                  >
-                                    {status.text}
-                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Badge
+                                      variant={
+                                        status.color === 'green'
+                                          ? 'default'
+                                          : status.color === 'yellow'
+                                          ? 'secondary'
+                                          : 'destructive'
+                                      }
+                                    >
+                                      {status.text}
+                                    </Badge>
+                                    {(profile?.role === 'piloto' || profile?.role === 'mecanico') && (
+                                      <>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-slate-400 hover:text-white"
+                                          onClick={(e) => { e.stopPropagation(); abrirEdicaoManutencao(manutencao) }}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7 text-red-400 hover:text-red-300"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent className="bg-slate-800 border-slate-700">
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle className="text-white">Excluir manutenção?</AlertDialogTitle>
+                                              <AlertDialogDescription className="text-slate-400">
+                                                "{manutencao.nome}" e todos os registros vinculados serão excluídos.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel className="border-slate-600 text-white">Cancelar</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => excluirManutencao(manutencao.id)} className="bg-red-600 hover:bg-red-700">
+                                                Excluir
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                                 {status.porcentagem !== undefined && (
                                   <Progress value={status.porcentagem} className="h-2" />
