@@ -15,7 +15,8 @@ export default function SubscriptionSuccess() {
 
   const paymentId = searchParams.get('payment_id')
   const status = searchParams.get('status')
-  const externalReference = searchParams.get('external_reference')
+  const preapprovalId = searchParams.get('preapproval_id')
+  const planId = searchParams.get('preapproval_plan_id')
 
   useEffect(() => {
     updateSubscription()
@@ -23,23 +24,57 @@ export default function SubscriptionSuccess() {
 
   const updateSubscription = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
         setError(true)
         setUpdating(false)
         return
       }
 
-      // Determinar o plano com base no external_reference ou role do usuário
+      // Usa a Edge Function com service role para garantir que bypassa RLS
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const res = await fetch(`${supabaseUrl}/functions/v1/activate-subscription`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          payment_id: paymentId,
+          status: status || 'approved',
+          plan_id: planId
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        console.error('Erro ao ativar assinatura via edge function:', data.error)
+        // Fallback: tenta atualizar diretamente pelo cliente
+        await fallbackUpdate(session.user.id)
+        return
+      }
+
+      // Recarrega o perfil no contexto para refletir o novo status
+      await refreshProfile()
+    } catch (err) {
+      console.error('Erro ao processar confirmação:', err)
+      setError(true)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const fallbackUpdate = async (userId: string) => {
+    try {
       const { data: profile } = await supabase
         .from('users')
         .select('role')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single()
 
       const plan = profile?.role === 'mecanico' ? 'oficina' : 'pro_piloto'
-
-      // Calcular data de expiração (1 mês a partir de agora)
       const expiresAt = new Date()
       expiresAt.setMonth(expiresAt.getMonth() + 1)
 
@@ -50,22 +85,17 @@ export default function SubscriptionSuccess() {
           subscription_plan: plan,
           subscription_expires_at: expiresAt.toISOString(),
           last_payment_id: paymentId,
-          last_payment_status: status,
+          last_payment_status: status || 'approved',
         })
-        .eq('id', user.id)
+        .eq('id', userId)
 
-      if (updateError) {
-        console.error('Erro ao atualizar assinatura:', updateError)
-        setError(true)
-      } else {
-        // Recarrega o perfil no contexto para refletir o novo status de assinatura
+      if (!updateError) {
         await refreshProfile()
+      } else {
+        setError(true)
       }
-    } catch (err) {
-      console.error('Erro ao processar confirmação:', err)
+    } catch {
       setError(true)
-    } finally {
-      setUpdating(false)
     }
   }
 
@@ -108,7 +138,7 @@ export default function SubscriptionSuccess() {
             <div className="bg-yellow-950 border border-yellow-800 rounded-lg p-4 text-sm text-yellow-300">
               <p className="font-medium">Pagamento recebido!</p>
               <p className="mt-1 text-xs">
-                Seu pagamento foi processado. Caso o acesso não seja liberado em instantes, entre em contato com o suporte.
+                Seu pagamento foi processado. Faça logout e login novamente para liberar o acesso.
               </p>
             </div>
           )}
