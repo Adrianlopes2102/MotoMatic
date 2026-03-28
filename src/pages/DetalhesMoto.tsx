@@ -19,6 +19,18 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
   ArrowLeft,
   Bike,
   Clock,
@@ -31,7 +43,9 @@ import {
   MapPin,
   UserPlus,
   X,
-  Filter,
+  Pencil,
+  Trash2,
+  Settings,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -108,8 +122,16 @@ export default function DetalhesMoto() {
   const [registrosHistorico, setRegistrosHistorico] = useState<RegistroManutencao[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editMotoOpen, setEditMotoOpen] = useState(false)
   const [emailMecanico, setEmailMecanico] = useState('')
   const [validoAte, setValidoAte] = useState('')
+  // Campos de edição da moto
+  const [editMarca, setEditMarca] = useState('')
+  const [editModelo, setEditModelo] = useState('')
+  const [editAno, setEditAno] = useState('')
+  const [editTipo, setEditTipo] = useState('')
+  const [editHorimetro, setEditHorimetro] = useState('')
+  const [savingMoto, setSavingMoto] = useState(false)
 
   useEffect(() => {
     loadMoto()
@@ -371,6 +393,79 @@ export default function DetalhesMoto() {
     }
   }
 
+  const abrirEdicaoMoto = () => {
+    if (!moto) return
+    setEditMarca(moto.marca)
+    setEditModelo(moto.modelo)
+    setEditAno(moto.ano.toString())
+    setEditTipo(moto.tipo)
+    setEditHorimetro(moto.horimetro.toString())
+    setEditMotoOpen(true)
+  }
+
+  const salvarEdicaoMoto = async () => {
+    if (!moto) return
+    setSavingMoto(true)
+    try {
+      const { error } = await supabase.from('motos').update({
+        marca: editMarca,
+        modelo: editModelo,
+        ano: parseInt(editAno),
+        tipo: editTipo,
+        horimetro: parseFloat(editHorimetro),
+      }).eq('id', moto.id)
+      if (error) throw error
+      toast({ title: 'Moto atualizada com sucesso!' })
+      setEditMotoOpen(false)
+      loadMoto()
+    } catch (error: any) {
+      toast({ title: 'Erro ao atualizar moto', description: error.message, variant: 'destructive' })
+    } finally {
+      setSavingMoto(false)
+    }
+  }
+
+  const excluirMoto = async () => {
+    if (!moto) return
+    try {
+      const { error } = await supabase.from('motos').delete().eq('id', moto.id)
+      if (error) throw error
+      toast({ title: 'Moto excluída!' })
+      navigate('/')
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir moto', description: error.message, variant: 'destructive' })
+    }
+  }
+
+  const excluirTrilha = async (trilhaId: string, horasComputadas: number) => {
+    try {
+      const { error } = await supabase.from('trilhas').delete().eq('id', trilhaId)
+      if (error) throw error
+      // Reverter horímetro
+      if (moto) {
+        const novoHorimetro = Math.max(0, moto.horimetro - horasComputadas)
+        await supabase.from('motos').update({ horimetro: novoHorimetro }).eq('id', moto.id)
+      }
+      toast({ title: 'Trilha excluída!' })
+      loadTrilhas()
+      loadMoto()
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir trilha', description: error.message, variant: 'destructive' })
+    }
+  }
+
+  const excluirRegistroManutencao = async (registroId: string) => {
+    try {
+      const { error } = await supabase.from('registros_manutencao').delete().eq('id', registroId)
+      if (error) throw error
+      toast({ title: 'Registro excluído!' })
+      loadManutencoes()
+      loadHistorico()
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir registro', description: error.message, variant: 'destructive' })
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
@@ -389,7 +484,7 @@ export default function DetalhesMoto() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Bike className="h-8 w-8 text-orange-500" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-bold text-white">
               {moto.marca} {moto.modelo}
             </h1>
@@ -397,8 +492,90 @@ export default function DetalhesMoto() {
               {moto.tipo} • {moto.ano}
             </p>
           </div>
+          {profile?.role === 'piloto' && (
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white" onClick={abrirEdicaoMoto}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-slate-800 border-slate-700">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">Excluir moto?</AlertDialogTitle>
+                    <AlertDialogDescription className="text-slate-400">
+                      Todos os dados desta moto (trilhas, manutenções, histórico) serão excluídos permanentemente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="border-slate-600 text-white">Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={excluirMoto} className="bg-red-600 hover:bg-red-700">
+                      Excluir
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
         </div>
       </nav>
+
+      {/* Modal de Edição da Moto */}
+      <Dialog open={editMotoOpen} onOpenChange={setEditMotoOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Editar Moto</DialogTitle>
+            <DialogDescription className="text-slate-400">Atualize as informações da sua moto</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-white">Marca</Label>
+                <Input value={editMarca} onChange={(e) => setEditMarca(e.target.value)} className="bg-slate-900 border-slate-600 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white">Modelo</Label>
+                <Input value={editModelo} onChange={(e) => setEditModelo(e.target.value)} className="bg-slate-900 border-slate-600 text-white" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-white">Ano</Label>
+                <Input type="number" value={editAno} onChange={(e) => setEditAno(e.target.value)} className="bg-slate-900 border-slate-600 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white">Horímetro (h)</Label>
+                <Input type="number" step="0.1" value={editHorimetro} onChange={(e) => setEditHorimetro(e.target.value)} className="bg-slate-900 border-slate-600 text-white" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white">Tipo</Label>
+              <Select value={editTipo} onValueChange={setEditTipo}>
+                <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Enduro">Enduro</SelectItem>
+                  <SelectItem value="Motocross">Motocross</SelectItem>
+                  <SelectItem value="Trail">Trail</SelectItem>
+                  <SelectItem value="Trilha">Trilha</SelectItem>
+                  <SelectItem value="Cross">Cross</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setEditMotoOpen(false)} className="border-slate-600 text-white">Cancelar</Button>
+            <Button onClick={salvarEdicaoMoto} disabled={savingMoto}>
+              {savingMoto ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="container mx-auto px-4 py-8">
         <Card className="bg-slate-800 border-slate-700 mb-6">
@@ -601,34 +778,66 @@ export default function DetalhesMoto() {
               </Card>
             ) : (
               <div className="space-y-3">
-                {trilhas.map((trilha) => (
-                  <Card key={trilha.id} className="bg-slate-800 border-slate-700">
-                    <CardContent className="py-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-white font-medium">
-                            {trilha.local || 'Trilha'} • {trilha.horas_uso}h
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {format(new Date(trilha.data), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                          </p>
+                {trilhas.map((trilha) => {
+                  const horasComputadas = trilha.tipo_uso === 'pesado'
+                    ? trilha.horas_uso * 1.5
+                    : trilha.tipo_uso === 'leve'
+                    ? trilha.horas_uso * 0.8
+                    : trilha.horas_uso
+                  return (
+                    <Card key={trilha.id} className="bg-slate-800 border-slate-700">
+                      <CardContent className="py-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-medium">
+                              {trilha.local || 'Trilha'} • {trilha.horas_uso}h
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {format(new Date(trilha.data), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                trilha.tipo_uso === 'leve'
+                                  ? 'default'
+                                  : trilha.tipo_uso === 'medio'
+                                  ? 'secondary'
+                                  : 'destructive'
+                              }
+                            >
+                              {trilha.tipo_uso}
+                            </Badge>
+                            {profile?.role === 'piloto' && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300 h-7 w-7">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="bg-slate-800 border-slate-700">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="text-white">Excluir trilha?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-slate-400">
+                                      O horímetro será revertido em {horasComputadas.toFixed(1)}h.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel className="border-slate-600 text-white">Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => excluirTrilha(trilha.id, horasComputadas)} className="bg-red-600 hover:bg-red-700">
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
                         </div>
-                        <Badge
-                          variant={
-                            trilha.tipo_uso === 'leve'
-                              ? 'default'
-                              : trilha.tipo_uso === 'medio'
-                              ? 'secondary'
-                              : 'destructive'
-                          }
-                        >
-                          {trilha.tipo_uso}
-                        </Badge>
-                      </div>
-                      {trilha.observacoes && <p className="text-sm text-slate-400 mt-2">{trilha.observacoes}</p>}
-                    </CardContent>
-                  </Card>
-                ))}
+                        {trilha.observacoes && <p className="text-sm text-slate-400 mt-2">{trilha.observacoes}</p>}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </TabsContent>
@@ -731,6 +940,29 @@ export default function DetalhesMoto() {
                                   <span className="text-xs text-green-400 font-medium">
                                     R$ {registro.custo.toFixed(2)}
                                   </span>
+                                )}
+                                {profile?.role === 'piloto' && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300 h-6 w-6">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent className="bg-slate-800 border-slate-700">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="text-white">Excluir registro?</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-slate-400">
+                                          Este registro de manutenção será excluído permanentemente.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel className="border-slate-600 text-white">Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => excluirRegistroManutencao(registro.id)} className="bg-red-600 hover:bg-red-700">
+                                          Excluir
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
                                 )}
                               </div>
                             </div>

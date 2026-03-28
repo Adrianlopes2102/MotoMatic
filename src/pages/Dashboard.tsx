@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Bike, Wrench, Bell, Plus, LogOut, Settings } from 'lucide-react'
+import { Bike, Plus, LogOut, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
@@ -124,7 +124,7 @@ export default function Dashboard() {
               <Card className="border-orange-200 bg-orange-50">
                 <CardHeader>
                   <CardTitle className="text-lg">Pro Piloto</CardTitle>
-                  <CardDescription>R$ 29,90/mês</CardDescription>
+                  <CardDescription>R$ 19,90/mês</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ul className="text-sm space-y-1">
@@ -141,7 +141,7 @@ export default function Dashboard() {
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
                   <CardTitle className="text-lg">Oficina/Mecânico</CardTitle>
-                  <CardDescription>R$ 49,90/mês</CardDescription>
+                  <CardDescription>R$ 39,90/mês</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ul className="text-sm space-y-1">
@@ -177,6 +177,9 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="text-white" onClick={() => navigate('/perfil')}>
+              <User className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" className="text-white" onClick={handleSignOut}>
               <LogOut className="h-5 w-5" />
             </Button>

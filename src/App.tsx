@@ -11,6 +11,7 @@ import SubscriptionSuccess from '@/pages/SubscriptionSuccess'
 import SubscriptionPending from '@/pages/SubscriptionPending'
 import SubscriptionFailure from '@/pages/SubscriptionFailure'
 import UnlockPage from '@/pages/admin/UnlockPage'
+import Perfil from '@/pages/Perfil'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -40,6 +41,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/perfil"
+        element={
+          <PrivateRoute>
+            <Perfil />
           </PrivateRoute>
         }
       />

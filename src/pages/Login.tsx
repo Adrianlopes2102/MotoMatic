@@ -12,7 +12,7 @@ import { Bike, Wrench } from 'lucide-react'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, resetPassword } = useAuth()
   const { toast } = useToast()
 
   const [loginEmail, setLoginEmail] = useState('')
@@ -22,6 +22,9 @@ export default function Login() {
   const [signupName, setSignupName] = useState('')
   const [signupRole, setSignupRole] = useState<'piloto' | 'mecanico'>('piloto')
   const [loading, setLoading] = useState(false)
+  const [showReset, setShowReset] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +41,24 @@ export default function Login() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetLoading(true)
+    try {
+      await resetPassword(resetEmail)
+      toast({
+        title: 'Email enviado!',
+        description: 'Verifique sua caixa de entrada para redefinir a senha',
+      })
+      setShowReset(false)
+      setResetEmail('')
+    } catch (error: any) {
+      toast({ title: 'Erro ao enviar email', description: error.message, variant: 'destructive' })
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -106,6 +127,28 @@ export default function Login() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? 'Entrando...' : 'Entrar'}
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => setShowReset(!showReset)}
+                  className="text-xs text-center text-slate-500 hover:text-slate-700 w-full mt-2"
+                >
+                  Esqueci minha senha
+                </button>
+                {showReset && (
+                  <form onSubmit={handleResetPassword} className="mt-3 pt-3 border-t space-y-3">
+                    <p className="text-xs text-slate-600">Digite seu email para receber o link de redefinição:</p>
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                    />
+                    <Button type="submit" variant="outline" className="w-full" disabled={resetLoading}>
+                      {resetLoading ? 'Enviando...' : 'Enviar link de redefinição'}
+                    </Button>
+                  </form>
+                )}
               </form>
             </TabsContent>
 
