@@ -29,9 +29,31 @@ export default function SubscriptionSuccess() {
         return
       }
 
+      // Segurança: só ativa se o Mercado Pago retornou status=approved E há payment_id
+      if (status !== 'approved' || !paymentId) {
+        console.warn('Tentativa de ativação sem pagamento aprovado:', { status, paymentId })
+        setError(true)
+        setUpdating(false)
+        return
+      }
+
       const userId = session.user.id
 
-      // Busca o perfil para pegar o plano pendente ou determinar pelo role
+      // Verifica se este payment_id já foi usado para evitar dupla ativação ou fraude
+      const { data: existingPayment } = await supabase
+        .from('users')
+        .select('last_payment_id, subscription_status')
+        .eq('id', userId)
+        .single()
+
+      // Se já está ativo com este mesmo payment_id, apenas atualiza o contexto
+      if (existingPayment?.subscription_status === 'active' && existingPayment?.last_payment_id === paymentId) {
+        await refreshProfile()
+        setUpdating(false)
+        return
+      }
+
+      // Busca o perfil para pegar o plano pendente
       const { data: profile } = await supabase
         .from('users')
         .select('role, pending_plan')
@@ -52,7 +74,7 @@ export default function SubscriptionSuccess() {
           subscription_plan: plan,
           subscription_expires_at: expiresAt.toISOString(),
           last_payment_id: paymentId,
-          last_payment_status: status || 'approved',
+          last_payment_status: status,
           pending_plan: null,
         })
         .eq('id', userId)
