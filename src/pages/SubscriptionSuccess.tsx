@@ -12,29 +12,40 @@ export default function SubscriptionSuccess() {
   const [updating, setUpdating] = useState(true)
   const [success, setSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [debugLogs, setDebugLogs] = useState<string[]>([])
   const { refreshProfile } = useAuth()
 
-  // Parâmetros que o Mercado Pago envia no redirect
+  // Todos os parâmetros que o Mercado Pago pode enviar no redirect
   const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id')
   const status = searchParams.get('status') || searchParams.get('collection_status')
   const preapprovalId = searchParams.get('preapproval_id')
+  const externalRef = searchParams.get('external_reference')
 
   useEffect(() => {
     activateSubscription()
   }, [])
 
   const activateSubscription = async () => {
+    setUpdating(true)
+    setErrorMsg(null)
+    const logs: string[] = []
+
     try {
+      logs.push(`Params: payment_id=${paymentId}, status=${status}, preapproval_id=${preapprovalId}`)
+
       const { data: { session } } = await supabase.auth.getSession()
+      logs.push(`Sessão: ${session ? 'ativa (user=' + session.user.id + ')' : 'não encontrada'}`)
+
       if (!session) {
-        setErrorMsg('Sessão expirada. Faça login novamente.')
+        setErrorMsg('Sessão expirada. Faça login novamente e acesse seu perfil.')
+        setDebugLogs(logs)
         setUpdating(false)
         return
       }
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 
-      // Chama a Edge Function segura que verifica o pagamento diretamente na API do MP
+      logs.push('Chamando verify-payment...')
       const res = await fetch(`${supabaseUrl}/functions/v1/verify-payment`, {
         method: 'POST',
         headers: {
@@ -46,24 +57,32 @@ export default function SubscriptionSuccess() {
           payment_id: paymentId,
           collection_id: paymentId,
           preapproval_id: preapprovalId,
+          external_reference: externalRef,
           status: status,
+          user_id: session.user.id,
+          user_email: session.user.email,
         }),
       })
 
       const data = await res.json()
+      logs.push(`Resposta: HTTP ${res.status}, ok=${data.ok}, plan=${data.plan}, error=${data.error}`)
+      if (data.logs) logs.push(...data.logs)
 
       if (res.ok && (data.ok || data.already_active)) {
         await refreshProfile()
         setSuccess(true)
       } else {
-        console.error('Falha na verificação:', data)
         setErrorMsg(
-          'Não foi possível confirmar o pagamento automaticamente. ' +
-          'Se o valor foi cobrado, entre em contato com o suporte informando o ID abaixo.'
+          data.error === 'Payment not verified'
+            ? 'Pagamento ainda não confirmado pelo Mercado Pago. Aguarde alguns instantes e tente novamente.'
+            : 'Erro ao ativar assinatura. Se o valor foi cobrado, entre em contato com o suporte.'
         )
       }
-    } catch (err) {
-      console.error('Erro ao processar confirmação:', err)
+
+      setDebugLogs(logs)
+    } catch (err: any) {
+      logs.push(`Exceção: ${err?.message}`)
+      setDebugLogs(logs)
       setErrorMsg('Erro de conexão. Verifique sua internet e tente novamente.')
     } finally {
       setUpdating(false)
@@ -95,7 +114,7 @@ export default function SubscriptionSuccess() {
               ? 'Confirmando com o Mercado Pago, aguarde...'
               : success
               ? 'Seu pagamento foi aprovado e o acesso foi liberado'
-              : 'Não foi possível confirmar automaticamente'}
+              : 'Não conseguimos confirmar automaticamente'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -118,6 +137,16 @@ export default function SubscriptionSuccess() {
               <p className="font-medium mb-1">Atenção</p>
               <p className="text-xs">{errorMsg}</p>
             </div>
+          )}
+
+          {/* Logs de diagnóstico — visíveis apenas em caso de erro para facilitar suporte */}
+          {!updating && !success && debugLogs.length > 0 && (
+            <details className="text-left">
+              <summary className="text-xs text-slate-500 cursor-pointer">Ver detalhes técnicos</summary>
+              <div className="mt-2 bg-slate-900 rounded p-2 text-xs text-slate-400 space-y-1">
+                {debugLogs.map((log, i) => <p key={i}>{log}</p>)}
+              </div>
+            </details>
           )}
 
           {paymentId && (
@@ -147,10 +176,7 @@ export default function SubscriptionSuccess() {
           )}
 
           {updating && (
-            <Button
-              disabled
-              className="w-full bg-orange-500 text-white"
-            >
+            <Button disabled className="w-full bg-orange-500 text-white">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Aguarde...
             </Button>
