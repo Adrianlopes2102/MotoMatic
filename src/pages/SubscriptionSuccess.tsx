@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, Loader2, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -10,11 +10,14 @@ export default function SubscriptionSuccess() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [updating, setUpdating] = useState(true)
-  const [error, setError] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const { refreshProfile } = useAuth()
 
-  const paymentId = searchParams.get('payment_id')
-  const status = searchParams.get('status')
+  // Parâmetros que o Mercado Pago envia no redirect
+  const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id')
+  const status = searchParams.get('status') || searchParams.get('collection_status')
+  const preapprovalId = searchParams.get('preapproval_id')
 
   useEffect(() => {
     activateSubscription()
@@ -24,70 +27,44 @@ export default function SubscriptionSuccess() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        setError(true)
+        setErrorMsg('Sessão expirada. Faça login novamente.')
         setUpdating(false)
         return
       }
 
-      // Segurança: só ativa se o Mercado Pago retornou status=approved E há payment_id
-      if (status !== 'approved' || !paymentId) {
-        console.warn('Tentativa de ativação sem pagamento aprovado:', { status, paymentId })
-        setError(true)
-        setUpdating(false)
-        return
-      }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 
-      const userId = session.user.id
+      // Chama a Edge Function segura que verifica o pagamento diretamente na API do MP
+      const res = await fetch(`${supabaseUrl}/functions/v1/verify-payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          payment_id: paymentId,
+          collection_id: paymentId,
+          preapproval_id: preapprovalId,
+          status: status,
+        }),
+      })
 
-      // Verifica se este payment_id já foi usado para evitar dupla ativação ou fraude
-      const { data: existingPayment } = await supabase
-        .from('users')
-        .select('last_payment_id, subscription_status')
-        .eq('id', userId)
-        .single()
+      const data = await res.json()
 
-      // Se já está ativo com este mesmo payment_id, apenas atualiza o contexto
-      if (existingPayment?.subscription_status === 'active' && existingPayment?.last_payment_id === paymentId) {
+      if (res.ok && (data.ok || data.already_active)) {
         await refreshProfile()
-        setUpdating(false)
-        return
-      }
-
-      // Busca o perfil para pegar o plano pendente
-      const { data: profile } = await supabase
-        .from('users')
-        .select('role, pending_plan')
-        .eq('id', userId)
-        .single()
-
-      // Usa o pending_plan salvo quando clicou em Assinar, ou determina pelo role
-      const plan = (profile as any)?.pending_plan
-        || (profile?.role === 'mecanico' ? 'oficina' : 'pro_piloto')
-
-      const expiresAt = new Date()
-      expiresAt.setMonth(expiresAt.getMonth() + 1)
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          subscription_status: 'active',
-          subscription_plan: plan,
-          subscription_expires_at: expiresAt.toISOString(),
-          last_payment_id: paymentId,
-          last_payment_status: status,
-          pending_plan: null,
-        })
-        .eq('id', userId)
-
-      if (updateError) {
-        console.error('Erro ao ativar assinatura:', updateError)
-        setError(true)
+        setSuccess(true)
       } else {
-        await refreshProfile()
+        console.error('Falha na verificação:', data)
+        setErrorMsg(
+          'Não foi possível confirmar o pagamento automaticamente. ' +
+          'Se o valor foi cobrado, entre em contato com o suporte informando o ID abaixo.'
+        )
       }
     } catch (err) {
       console.error('Erro ao processar confirmação:', err)
-      setError(true)
+      setErrorMsg('Erro de conexão. Verifique sua internet e tente novamente.')
     } finally {
       setUpdating(false)
     }
@@ -100,24 +77,32 @@ export default function SubscriptionSuccess() {
           <div className="flex justify-center mb-4">
             {updating ? (
               <Loader2 className="h-20 w-20 text-orange-500 animate-spin" />
-            ) : (
+            ) : success ? (
               <CheckCircle className="h-20 w-20 text-green-500" />
+            ) : (
+              <AlertCircle className="h-20 w-20 text-yellow-500" />
             )}
           </div>
           <CardTitle className="text-2xl text-white">
-            {updating ? 'Ativando sua assinatura...' : 'Assinatura Confirmada!'}
+            {updating
+              ? 'Verificando seu pagamento...'
+              : success
+              ? 'Assinatura Confirmada!'
+              : 'Verificação Pendente'}
           </CardTitle>
           <CardDescription className="mt-2 text-slate-400">
             {updating
-              ? 'Aguarde enquanto ativamos seu acesso'
-              : 'Seu pagamento foi aprovado e o acesso foi liberado'}
+              ? 'Confirmando com o Mercado Pago, aguarde...'
+              : success
+              ? 'Seu pagamento foi aprovado e o acesso foi liberado'
+              : 'Não foi possível confirmar automaticamente'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!updating && !error && (
+          {!updating && success && (
             <div className="bg-green-950 border border-green-800 rounded-lg p-4 text-sm text-green-300">
               <p className="font-medium flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" /> Pagamento processado
+                <CheckCircle className="h-4 w-4" /> Pagamento verificado com o Mercado Pago
               </p>
               <p className="mt-1 flex items-center gap-2">
                 <CheckCircle className="h-4 w-4" /> Acesso liberado imediatamente
@@ -128,12 +113,10 @@ export default function SubscriptionSuccess() {
             </div>
           )}
 
-          {error && (
-            <div className="bg-yellow-950 border border-yellow-800 rounded-lg p-4 text-sm text-yellow-300">
-              <p className="font-medium">Pagamento recebido!</p>
-              <p className="mt-1 text-xs">
-                Seu pagamento foi processado. Acesse o app normalmente — seu acesso já está liberado.
-              </p>
+          {!updating && errorMsg && (
+            <div className="bg-yellow-950 border border-yellow-800 rounded-lg p-4 text-sm text-yellow-300 text-left">
+              <p className="font-medium mb-1">Atenção</p>
+              <p className="text-xs">{errorMsg}</p>
             </div>
           )}
 
@@ -143,20 +126,35 @@ export default function SubscriptionSuccess() {
             </div>
           )}
 
-          <Button
-            onClick={() => navigate('/')}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-            disabled={updating}
-          >
-            {updating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Aguarde...
-              </>
-            ) : (
-              'Ir para o Dashboard'
-            )}
-          </Button>
+          {!updating && (
+            <div className="space-y-2">
+              <Button
+                onClick={() => navigate('/')}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                Ir para o Dashboard
+              </Button>
+              {!success && (
+                <Button
+                  onClick={activateSubscription}
+                  variant="outline"
+                  className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
+                >
+                  Tentar novamente
+                </Button>
+              )}
+            </div>
+          )}
+
+          {updating && (
+            <Button
+              disabled
+              className="w-full bg-orange-500 text-white"
+            >
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Aguarde...
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

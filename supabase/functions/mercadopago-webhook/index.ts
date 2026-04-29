@@ -49,7 +49,7 @@ serve(async (req) => {
       console.log('Dados do pagamento:', JSON.stringify(paymentData, null, 2))
 
       // Atualizar banco de dados baseado no status
-      if (paymentData.status === 'approved') {
+      if (paymentData.status === 'approved' || paymentData.status === 'authorized') {
         const userEmail = paymentData.payer?.email
 
         if (!userEmail) {
@@ -61,14 +61,17 @@ serve(async (req) => {
         }
 
         // Determinar o plano baseado no valor
-        let subscriptionPlan = 'free'
+        let subscriptionPlan = 'pro_piloto'
         const amount = paymentData.transaction_amount
 
         if (amount >= 39.90) {
-          subscriptionPlan = 'oficina' // Plano Mecânico
+          subscriptionPlan = 'oficina'
         } else if (amount >= 19.90) {
-          subscriptionPlan = 'pro_piloto' // Plano Piloto
+          subscriptionPlan = 'pro_piloto'
         }
+
+        const expiresAt = new Date()
+        expiresAt.setMonth(expiresAt.getMonth() + 1)
 
         // Atualizar usuário no banco
         const { error: updateError } = await supabase
@@ -76,7 +79,11 @@ serve(async (req) => {
           .update({
             subscription_status: 'active',
             subscription_plan: subscriptionPlan,
-            trial_ends_at: null, // Remove trial
+            subscription_expires_at: expiresAt.toISOString(),
+            last_payment_id: paymentData.id?.toString(),
+            last_payment_status: paymentData.status,
+            trial_ends_at: null,
+            pending_plan: null,
           })
           .eq('email', userEmail)
 
@@ -128,12 +135,19 @@ serve(async (req) => {
           subscriptionPlan = 'pro_piloto'
         }
 
+        const expiresAt = new Date()
+        expiresAt.setMonth(expiresAt.getMonth() + 1)
+
         const { error: updateError } = await supabase
           .from('users')
           .update({
             subscription_status: 'active',
             subscription_plan: subscriptionPlan,
+            subscription_expires_at: expiresAt.toISOString(),
+            last_payment_id: subscriptionData.id?.toString(),
+            last_payment_status: 'authorized',
             trial_ends_at: null,
+            pending_plan: null,
           })
           .eq('email', userEmail)
 
