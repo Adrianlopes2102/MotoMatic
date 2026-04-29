@@ -52,6 +52,7 @@ export default function SubscriptionSuccess() {
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
+          'x-mp-token': import.meta.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || '',
         },
         body: JSON.stringify({
           payment_id: paymentId,
