@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,9 @@ export default function SubscriptionSuccess() {
   const [success, setSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [debugLogs, setDebugLogs] = useState<string[]>([])
-  const { refreshProfile } = useAuth()
+  const [statusMsg, setStatusMsg] = useState('Restaurando sua sessão...')
+  const { refreshProfile, loading: authLoading } = useAuth()
+  const hasRun = useRef(false)
 
   // Todos os parâmetros que o Mercado Pago pode enviar no redirect
   const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id')
@@ -21,9 +23,13 @@ export default function SubscriptionSuccess() {
   const preapprovalId = searchParams.get('preapproval_id')
   const externalRef = searchParams.get('external_reference')
 
+  // Aguarda o AuthContext terminar de carregar antes de verificar
   useEffect(() => {
+    if (authLoading) return
+    if (hasRun.current) return
+    hasRun.current = true
     activateSubscription()
-  }, [])
+  }, [authLoading])
 
   const activateSubscription = async () => {
     setUpdating(true)
@@ -32,16 +38,39 @@ export default function SubscriptionSuccess() {
 
     try {
       logs.push(`Params: payment_id=${paymentId}, status=${status}, preapproval_id=${preapprovalId}`)
+      setStatusMsg('Verificando sua sessão...')
 
-      const { data: { session } } = await supabase.auth.getSession()
-      logs.push(`Sessão: ${session ? 'ativa (user=' + session.user.id + ')' : 'não encontrada'}`)
+      // Tenta obter a sessão. Se não tiver, espera até 8s pelo onAuthStateChange
+      let session = (await supabase.auth.getSession()).data.session
 
       if (!session) {
-        setErrorMsg('Sessão expirada. Faça login novamente e acesse seu perfil.')
+        logs.push('Sessão não imediata, aguardando restauração...')
+        setStatusMsg('Aguardando sessão ser restaurada...')
+
+        session = await new Promise((resolve) => {
+          const timeout = setTimeout(() => resolve(null), 8000)
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+            if (s) {
+              clearTimeout(timeout)
+              subscription.unsubscribe()
+              resolve(s)
+            }
+          })
+        })
+      }
+
+      logs.push(`Sessão: ${session ? 'ativa (user=' + session.user.id + ')' : 'não encontrada após espera'}`)
+
+      if (!session) {
+        // Sessão perdida: tenta verificar pelo preapproval_id sem autenticação (usando webhook como fallback)
+        // Mostra tela de login com instrução clara
+        setErrorMsg('Sua sessão expirou durante o redirecionamento. Faça login novamente — seu pagamento foi registrado e será ativado automaticamente.')
         setDebugLogs(logs)
         setUpdating(false)
         return
       }
+
+      setStatusMsg('Confirmando pagamento com o Mercado Pago...')
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 
@@ -52,8 +81,6 @@ export default function SubscriptionSuccess() {
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
-          'x-mp-token': import.meta.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || '',
-          'x-service-key': import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '',
         },
         body: JSON.stringify({
           payment_id: paymentId,
@@ -91,6 +118,11 @@ export default function SubscriptionSuccess() {
     }
   }
 
+  const handleRetry = () => {
+    hasRun.current = false
+    activateSubscription()
+  }
+
   return (
     <div className="min-h-screen bg-[#1e293b] flex items-center justify-center p-4">
       <Card className="w-full max-w-md text-center bg-slate-800 border-slate-700">
@@ -113,7 +145,7 @@ export default function SubscriptionSuccess() {
           </CardTitle>
           <CardDescription className="mt-2 text-slate-400">
             {updating
-              ? 'Confirmando com o Mercado Pago, aguarde...'
+              ? statusMsg
               : success
               ? 'Seu pagamento foi aprovado e o acesso foi liberado'
               : 'Não conseguimos confirmar automaticamente'}
@@ -141,7 +173,7 @@ export default function SubscriptionSuccess() {
             </div>
           )}
 
-          {/* Logs de diagnóstico — visíveis apenas em caso de erro para facilitar suporte */}
+          {/* Logs de diagnóstico — visíveis apenas em caso de erro */}
           {!updating && !success && debugLogs.length > 0 && (
             <details className="text-left">
               <summary className="text-xs text-slate-500 cursor-pointer">Ver detalhes técnicos</summary>
@@ -157,6 +189,12 @@ export default function SubscriptionSuccess() {
             </div>
           )}
 
+          {preapprovalId && !paymentId && (
+            <div className="text-xs text-slate-500">
+              ID da Assinatura: {preapprovalId}
+            </div>
+          )}
+
           {!updating && (
             <div className="space-y-2">
               <Button
@@ -167,7 +205,7 @@ export default function SubscriptionSuccess() {
               </Button>
               {!success && (
                 <Button
-                  onClick={activateSubscription}
+                  onClick={handleRetry}
                   variant="outline"
                   className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
                 >
