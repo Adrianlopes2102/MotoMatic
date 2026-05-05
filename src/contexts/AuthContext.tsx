@@ -161,7 +161,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    // Usa o domínio publicado em produção, ou o origin atual em desenvolvimento
+    const isProd = window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('127.')
+    const baseUrl = isProd
+      ? 'https://mototrackpro.lasy.dev'
+      : window.location.origin
+    const redirectTo = `${baseUrl}/reset-password`
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    })
     if (error) throw error
   }
 

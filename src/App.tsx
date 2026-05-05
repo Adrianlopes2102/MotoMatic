@@ -12,6 +12,7 @@ import SubscriptionPending from '@/pages/SubscriptionPending'
 import SubscriptionFailure from '@/pages/SubscriptionFailure'
 import UnlockPage from '@/pages/admin/UnlockPage'
 import Perfil from '@/pages/Perfil'
+import ResetPassword from '@/pages/ResetPassword'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -31,6 +32,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin/unlock" element={<UnlockPage />} />
       <Route path="/upgrade" element={<Subscription />} />
       <Route path="/subscription/success" element={<SubscriptionSuccess />} />
