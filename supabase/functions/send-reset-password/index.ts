@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const { email, redirectTo } = await req.json()
+    const { email, redirectTo, resendKey } = await req.json()
 
     if (!email) {
       return new Response(JSON.stringify({ error: 'Email obrigatório' }), {
@@ -19,7 +19,8 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
+    // Aceita a chave via secret OU via parâmetro da requisição
+    const resendApiKey = Deno.env.get('RESEND_API_KEY') || resendKey
     const finalRedirectTo = redirectTo || 'https://mototrackpro.lasy.dev/reset-password'
 
     if (!supabaseUrl || !serviceRoleKey) {
@@ -30,7 +31,7 @@ Deno.serve(async (req) => {
     }
 
     if (!resendApiKey) {
-      return new Response(JSON.stringify({ error: 'RESEND_API_KEY não configurado' }), {
+      return new Response(JSON.stringify({ error: 'Chave do serviço de email não configurada' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -47,15 +48,14 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         type: 'recovery',
         email: email,
-        options: {
-          redirectTo: finalRedirectTo
-        }
+        options: { redirectTo: finalRedirectTo }
       })
     })
 
     const linkData = await generateLinkResponse.json()
 
     if (!generateLinkResponse.ok) {
+      // Retorna sucesso silencioso se usuário não existe (segurança)
       return new Response(JSON.stringify({
         success: true,
         message: 'Se este email estiver cadastrado, você receberá as instruções em breve.'
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     const recoveryLink = linkData.action_link
 
     if (!recoveryLink) {
-      return new Response(JSON.stringify({ error: 'Não foi possível gerar o link' }), {
+      return new Response(JSON.stringify({ error: 'Não foi possível gerar o link de recuperação' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -85,34 +85,7 @@ Deno.serve(async (req) => {
         from: 'MotoTrack Pro <onboarding@resend.dev>',
         to: [email],
         subject: 'Redefinição de senha - MotoTrack Pro',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-            <div style="background: linear-gradient(135deg, #f97316, #ef4444); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">MotoTrack Pro</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Gestão de Manutenção Off-Road</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
-              <h2 style="color: #1f2937; margin-top: 0; font-size: 22px;">Redefinição de Senha</h2>
-              <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                Recebemos uma solicitação para redefinir a senha da sua conta no MotoTrack Pro. Clique no botão abaixo para criar uma nova senha:
-              </p>
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${recoveryLink}"
-                   style="background: linear-gradient(135deg, #f97316, #ef4444); color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;">
-                  Redefinir minha senha
-                </a>
-              </div>
-              <p style="color: #6b7280; font-size: 14px; line-height: 1.5;">
-                Este link é válido por <strong>1 hora</strong>.<br>
-                Se você não solicitou a redefinição de senha, ignore este email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-              <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                MotoTrack Pro &bull; Gestão completa de manutenção off-road
-              </p>
-            </div>
-          </div>
-        `
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:20px"><div style="background:linear-gradient(135deg,#f97316,#ef4444);padding:30px;border-radius:12px 12px 0 0;text-align:center"><h1 style="color:white;margin:0;font-size:28px">MotoTrack Pro</h1><p style="color:rgba(255,255,255,.9);margin:8px 0 0;font-size:14px">Gestão de Manutenção Off-Road</p></div><div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb"><h2 style="color:#1f2937;margin-top:0">Redefinição de Senha</h2><p style="color:#4b5563;font-size:16px;line-height:1.6">Recebemos uma solicitação para redefinir sua senha. Clique no botão abaixo para criar uma nova senha:</p><div style="text-align:center;margin:32px 0"><a href="${recoveryLink}" style="background:linear-gradient(135deg,#f97316,#ef4444);color:white;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">Redefinir minha senha</a></div><p style="color:#6b7280;font-size:14px">Este link é válido por <strong>1 hora</strong>. Se não solicitou, ignore este email.</p><hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"><p style="color:#9ca3af;font-size:12px;text-align:center">MotoTrack Pro &bull; Gestão completa de manutenção off-road</p></div></div>`
       })
     })
 
@@ -125,17 +98,14 @@ Deno.serve(async (req) => {
       })
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Email de recuperação enviado com sucesso!'
-    }), {
+    return new Response(JSON.stringify({ success: true, message: 'Email enviado com sucesso!' }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
-    console.error('Erro na Edge Function:', error)
-    return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), {
+    console.error('Erro:', error)
+    return new Response(JSON.stringify({ error: `Erro interno: ${error}` }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
