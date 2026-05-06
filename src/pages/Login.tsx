@@ -101,55 +101,70 @@ export default function Login() {
             </TabsList>
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">E-mail</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Senha</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Entrando...' : 'Entrar'}
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setShowReset(!showReset)}
-                  className="text-xs text-center text-slate-500 hover:text-slate-700 w-full mt-2"
-                >
-                  Esqueci minha senha
-                </button>
-                {showReset && (
-                  <form onSubmit={handleResetPassword} className="mt-3 pt-3 border-t space-y-3">
-                    <p className="text-xs text-slate-600">Digite seu email para receber o link de redefinição:</p>
+              {!showReset ? (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">E-mail</Label>
                     <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Senha</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? 'Entrando...' : 'Entrar'}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowReset(true)}
+                    className="text-xs text-center text-slate-500 hover:text-slate-700 w-full mt-2"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <div className="text-center mb-2">
+                    <p className="font-medium text-slate-700">Recuperar senha</p>
+                    <p className="text-xs text-slate-500 mt-1">Digite seu email para receber o link de redefinição</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">E-mail</Label>
+                    <Input
+                      id="reset-email"
                       type="email"
                       placeholder="seu@email.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
                       required
                     />
-                    <Button type="submit" variant="outline" className="w-full" disabled={resetLoading}>
-                      {resetLoading ? 'Enviando...' : 'Enviar link de redefinição'}
-                    </Button>
-                  </form>
-                )}
-              </form>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={resetLoading}>
+                    {resetLoading ? 'Enviando...' : 'Enviar link de redefinição'}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowReset(false); setResetEmail('') }}
+                    className="text-xs text-center text-slate-500 hover:text-slate-700 w-full"
+                  >
+                    Voltar para o login
+                  </button>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
