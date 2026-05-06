@@ -19,7 +19,6 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    // Aceita a chave via secret OU via parâmetro da requisição
     const resendApiKey = Deno.env.get('RESEND_API_KEY') || resendKey
     const finalRedirectTo = redirectTo || 'https://mototrackpro.lasy.dev/reset-password'
 
@@ -65,13 +64,24 @@ Deno.serve(async (req) => {
       })
     }
 
-    const recoveryLink = linkData.action_link
+    let recoveryLink = linkData.action_link
 
     if (!recoveryLink) {
       return new Response(JSON.stringify({ error: 'Não foi possível gerar o link de recuperação' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+
+    // CORREÇÃO CRÍTICA: o Supabase pode gerar o link com localhost ou domínio errado.
+    // Substitui qualquer domínio incorreto pelo domínio correto do app.
+    const correctDomain = 'https://mototrackpro.lasy.dev'
+    try {
+      const linkUrl = new URL(recoveryLink)
+      // Substitui o domínio base pelo domínio correto, mantendo o path e query params
+      recoveryLink = recoveryLink.replace(`${linkUrl.protocol}//${linkUrl.host}`, correctDomain)
+    } catch {
+      // Se não conseguir parsear a URL, usa o link original
     }
 
     // Envia o email via Resend
@@ -92,7 +102,7 @@ Deno.serve(async (req) => {
     if (!emailResponse.ok) {
       const emailError = await emailResponse.json()
       console.error('Erro Resend:', JSON.stringify(emailError))
-      return new Response(JSON.stringify({ error: `Erro ao enviar email: ${emailError.message || emailResponse.status}` }), {
+      return new Response(JSON.stringify({ error: `Erro Resend: ${emailError.message || emailResponse.status}` }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
