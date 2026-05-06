@@ -162,38 +162,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const redirectTo = 'https://mototrackpro.lasy.dev/reset-password'
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-    // Tenta via Edge Function primeiro (contorna restrições de URL de redirecionamento)
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-      if (supabaseUrl && supabaseAnonKey) {
-        const projectRef = supabaseUrl.replace('https://', '').split('.')[0]
-        const edgeFunctionUrl = `${supabaseUrl}/functions/v1/send-reset-password`
-
-        const response = await fetch(edgeFunctionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({ email, redirectTo }),
-        })
-
-        const data = await response.json()
-        if (response.ok && data.success) return
-      }
-    } catch {
-      // Se a Edge Function falhar, cai no método padrão abaixo
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Configuração do servidor incompleta. Tente novamente.')
     }
 
-    // Fallback: método padrão do Supabase
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    })
-    if (error) throw error
+    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/send-reset-password`
+
+    let response: Response
+    try {
+      response = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({ email, redirectTo }),
+      })
+    } catch (networkErr: any) {
+      throw new Error(`Erro de conexão com o servidor: ${networkErr.message}`)
+    }
+
+    let data: any
+    try {
+      data = await response.json()
+    } catch {
+      throw new Error(`Resposta inválida do servidor (status ${response.status})`)
+    }
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `Erro ao enviar email (status ${response.status})`)
+    }
   }
 
   const refreshProfile = async () => {
