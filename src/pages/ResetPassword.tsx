@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
-import { Bike, Lock, CheckCircle } from 'lucide-react'
+import { Bike, Lock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function ResetPassword() {
   const navigate = useNavigate()
@@ -16,14 +16,77 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
+  const [verifying, setVerifying] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // O Supabase processa o token de redefinição automaticamente via hash na URL
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setSessionReady(true)
+    const processToken = async () => {
+      setVerifying(true)
+
+      // Tenta processar token_hash da URL (formato do nosso link customizado)
+      const hash = window.location.hash
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const tokenHash = params.get('token_hash')
+      const type = params.get('type')
+
+      if (tokenHash && type === 'recovery') {
+        // Verifica o token_hash diretamente com o Supabase
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'recovery',
+        })
+
+        if (verifyError) {
+          setError('Link inválido ou expirado. Solicite um novo link de recuperação.')
+        } else {
+          setSessionReady(true)
+        }
+        setVerifying(false)
+        return
       }
-    })
+
+      // Tenta processar access_token do hash (formato padrão do Supabase)
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+
+      if (accessToken && refreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+
+        if (sessionError) {
+          setError('Link inválido ou expirado. Solicite um novo link de recuperação.')
+        } else {
+          setSessionReady(true)
+        }
+        setVerifying(false)
+        return
+      }
+
+      // Fallback: escuta o evento PASSWORD_RECOVERY do Supabase
+      // (quando o link passa pelo domínio do Supabase e redireciona com token no hash)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY' && session) {
+          setSessionReady(true)
+          setVerifying(false)
+        }
+      })
+
+      // Timeout: se em 5 segundos não receber o evento, mostra erro
+      const timeout = setTimeout(() => {
+        setVerifying(false)
+        setError('Link inválido ou expirado. Solicite um novo link de recuperação.')
+        subscription.unsubscribe()
+      }, 5000)
+
+      return () => {
+        clearTimeout(timeout)
+        subscription.unsubscribe()
+      }
+    }
+
+    processToken()
   }, [])
 
   const handleReset = async (e: React.FormEvent) => {
@@ -79,13 +142,27 @@ export default function ResetPassword() {
           <CardDescription>Redefinição de senha</CardDescription>
         </CardHeader>
         <CardContent>
-          {done ? (
+          {verifying ? (
+            <div className="text-center space-y-4 py-6">
+              <Loader2 className="h-10 w-10 text-orange-500 mx-auto animate-spin" />
+              <p className="text-sm text-slate-500">Verificando seu link...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center space-y-4 py-4">
+              <AlertCircle className="h-14 w-14 text-red-500 mx-auto" />
+              <p className="text-base font-semibold text-red-700">Link inválido ou expirado</p>
+              <p className="text-sm text-slate-500">{error}</p>
+              <Button className="w-full mt-2" onClick={() => navigate('/login')}>
+                Voltar para o login
+              </Button>
+            </div>
+          ) : done ? (
             <div className="text-center space-y-4 py-4">
               <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
               <p className="text-lg font-semibold text-green-700">Senha redefinida!</p>
               <p className="text-sm text-slate-500">Você será redirecionado para o login em instantes...</p>
             </div>
-          ) : (
+          ) : sessionReady ? (
             <form onSubmit={handleReset} className="space-y-4">
               <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg p-3 mb-2">
                 <Lock className="h-4 w-4 text-orange-600 shrink-0" />
@@ -126,6 +203,15 @@ export default function ResetPassword() {
                 Voltar para o login
               </button>
             </form>
+          ) : (
+            <div className="text-center space-y-4 py-4">
+              <AlertCircle className="h-14 w-14 text-orange-500 mx-auto" />
+              <p className="text-base font-semibold text-slate-700">Link não reconhecido</p>
+              <p className="text-sm text-slate-500">Solicite um novo link de recuperação de senha.</p>
+              <Button className="w-full mt-2" onClick={() => navigate('/login')}>
+                Voltar para o login
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

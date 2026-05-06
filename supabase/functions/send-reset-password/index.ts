@@ -54,7 +54,6 @@ Deno.serve(async (req) => {
     const linkData = await generateLinkResponse.json()
 
     if (!generateLinkResponse.ok) {
-      // Retorna sucesso silencioso se usuário não existe (segurança)
       return new Response(JSON.stringify({
         success: true,
         message: 'Se este email estiver cadastrado, você receberá as instruções em breve.'
@@ -64,24 +63,39 @@ Deno.serve(async (req) => {
       })
     }
 
-    let recoveryLink = linkData.action_link
+    // O Supabase retorna action_link (link completo do supabase.co que redireciona para o app)
+    // e também token_hash + hashed_token que podemos usar para montar nosso próprio link
+    const recoveryLink = linkData.action_link
+    const tokenHash = linkData.hashed_token || linkData.token_hash
 
-    if (!recoveryLink) {
+    if (!recoveryLink && !tokenHash) {
       return new Response(JSON.stringify({ error: 'Não foi possível gerar o link de recuperação' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // CORREÇÃO CRÍTICA: o Supabase pode gerar o link com localhost ou domínio errado.
-    // Substitui qualquer domínio incorreto pelo domínio correto do app.
-    const correctDomain = 'https://mototrackpro.lasy.dev'
-    try {
-      const linkUrl = new URL(recoveryLink)
-      // Substitui o domínio base pelo domínio correto, mantendo o path e query params
-      recoveryLink = recoveryLink.replace(`${linkUrl.protocol}//${linkUrl.host}`, correctDomain)
-    } catch {
-      // Se não conseguir parsear a URL, usa o link original
+    // Monta o link direto para o app com o token
+    // Formato: https://mototrackpro.lasy.dev/reset-password#access_token=...&type=recovery
+    // Usando token_hash para montar link direto que não passa pelo supabase.co
+    let finalLink = recoveryLink
+
+    if (tokenHash) {
+      // Link direto para o app — o Supabase JS no cliente processa o hash automaticamente
+      finalLink = `https://mototrackpro.lasy.dev/reset-password#token_hash=${tokenHash}&type=recovery`
+    } else if (recoveryLink) {
+      // Fallback: usa o action_link do Supabase (passa pelo supabase.co e redireciona)
+      // Garante que o redirect_to aponte para o domínio correto
+      try {
+        const url = new URL(recoveryLink)
+        const redirectParam = url.searchParams.get('redirect_to')
+        if (redirectParam && (redirectParam.includes('localhost') || !redirectParam.includes('mototrackpro'))) {
+          url.searchParams.set('redirect_to', finalRedirectTo)
+          finalLink = url.toString()
+        }
+      } catch {
+        // mantém o link original
+      }
     }
 
     // Envia o email via Resend
@@ -95,7 +109,7 @@ Deno.serve(async (req) => {
         from: 'MotoTrack Pro <onboarding@resend.dev>',
         to: [email],
         subject: 'Redefinição de senha - MotoTrack Pro',
-        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:20px"><div style="background:linear-gradient(135deg,#f97316,#ef4444);padding:30px;border-radius:12px 12px 0 0;text-align:center"><h1 style="color:white;margin:0;font-size:28px">MotoTrack Pro</h1><p style="color:rgba(255,255,255,.9);margin:8px 0 0;font-size:14px">Gestão de Manutenção Off-Road</p></div><div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb"><h2 style="color:#1f2937;margin-top:0">Redefinição de Senha</h2><p style="color:#4b5563;font-size:16px;line-height:1.6">Recebemos uma solicitação para redefinir sua senha. Clique no botão abaixo para criar uma nova senha:</p><div style="text-align:center;margin:32px 0"><a href="${recoveryLink}" style="background:linear-gradient(135deg,#f97316,#ef4444);color:white;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">Redefinir minha senha</a></div><p style="color:#6b7280;font-size:14px">Este link é válido por <strong>1 hora</strong>. Se não solicitou, ignore este email.</p><hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"><p style="color:#9ca3af;font-size:12px;text-align:center">MotoTrack Pro &bull; Gestão completa de manutenção off-road</p></div></div>`
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:20px"><div style="background:linear-gradient(135deg,#f97316,#ef4444);padding:30px;border-radius:12px 12px 0 0;text-align:center"><h1 style="color:white;margin:0;font-size:28px">MotoTrack Pro</h1><p style="color:rgba(255,255,255,.9);margin:8px 0 0;font-size:14px">Gestão de Manutenção Off-Road</p></div><div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb"><h2 style="color:#1f2937;margin-top:0">Redefinição de Senha</h2><p style="color:#4b5563;font-size:16px;line-height:1.6">Recebemos uma solicitação para redefinir sua senha. Clique no botão abaixo para criar uma nova senha:</p><div style="text-align:center;margin:32px 0"><a href="${finalLink}" style="background:linear-gradient(135deg,#f97316,#ef4444);color:white;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block">Redefinir minha senha</a></div><p style="color:#6b7280;font-size:14px">Este link é válido por <strong>1 hora</strong>. Se não solicitou, ignore este email.</p><hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"><p style="color:#9ca3af;font-size:12px;text-align:center">MotoTrack Pro &bull; Gestão completa de manutenção off-road</p></div></div>`
       })
     })
 
