@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const resendApiKey = Deno.env.get('RESEND_API_KEY') || resendKey
-    const finalRedirectTo = redirectTo || 'https://mototrackpro.lasy.dev/reset-password'
+    const finalRedirectTo = redirectTo || 'https://www.mototrackpro.com.br/reset-password'
 
     if (!supabaseUrl || !serviceRoleKey) {
       return new Response(JSON.stringify({ error: 'Configuração do servidor incompleta' }), {
@@ -76,13 +76,13 @@ Deno.serve(async (req) => {
     }
 
     // Monta o link direto para o app com o token
-    // Formato: https://mototrackpro.lasy.dev/reset-password#access_token=...&type=recovery
+    // Formato: https://www.mototrackpro.com.br/reset-password#access_token=...&type=recovery
     // Usando token_hash para montar link direto que não passa pelo supabase.co
     let finalLink = recoveryLink
 
     if (tokenHash) {
       // Link direto para o app — o Supabase JS no cliente processa o hash automaticamente
-      finalLink = `https://mototrackpro.lasy.dev/reset-password#token_hash=${tokenHash}&type=recovery`
+      finalLink = `https://www.mototrackpro.com.br/reset-password#token_hash=${tokenHash}&type=recovery`
     } else if (recoveryLink) {
       // Fallback: usa o action_link do Supabase (passa pelo supabase.co e redireciona)
       // Garante que o redirect_to aponte para o domínio correto
