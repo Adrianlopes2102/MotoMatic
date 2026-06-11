@@ -135,7 +135,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     })
-    if (error) throw error
+
+    if (error) {
+      if (error.message.includes('already registered') || error.message.includes('already been registered')) {
+        throw new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.')
+      }
+      throw error
+    }
+
+    // Supabase retorna identities vazio quando o email já existe (sem lançar erro)
+    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+      throw new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.')
+    }
 
     if (data.user) {
       const trialEndsAt = new Date()
