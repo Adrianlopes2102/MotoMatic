@@ -63,24 +63,29 @@ Deno.serve(async (req) => {
       })
     }
 
-    // O Supabase retorna action_link que redireciona para o app com access_token no hash
-    const recoveryLink = linkData.action_link
+    // Extrai o token_hash da resposta para montar link direto (mais confiável em SPAs)
+    // O Supabase retorna: hashed_token, token_hash, ou dentro do action_link
+    const tokenHash = linkData.hashed_token || linkData.token_hash
 
-    if (!recoveryLink) {
+    let finalLink: string
+
+    if (tokenHash) {
+      // Link direto para o app com token como query param — sem passar pelo supabase.co
+      finalLink = `${finalRedirectTo}?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
+    } else if (linkData.action_link) {
+      // Fallback: usa o action_link mas força o redirect_to
+      try {
+        const url = new URL(linkData.action_link)
+        url.searchParams.set('redirect_to', finalRedirectTo)
+        finalLink = url.toString()
+      } catch {
+        finalLink = linkData.action_link
+      }
+    } else {
       return new Response(JSON.stringify({ error: 'Não foi possível gerar o link de recuperação' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
-    }
-
-    // Força o redirect_to para o domínio de produção (sobrescreve qualquer localhost)
-    let finalLink = recoveryLink
-    try {
-      const url = new URL(recoveryLink)
-      url.searchParams.set('redirect_to', finalRedirectTo)
-      finalLink = url.toString()
-    } catch {
-      // mantém o link original
     }
 
     // Envia o email via Resend
