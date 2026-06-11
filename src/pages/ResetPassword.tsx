@@ -20,22 +20,27 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>
+    let subscription: { unsubscribe: () => void } | null = null
+
     const processToken = async () => {
       setVerifying(true)
 
-      // Tenta processar token_hash da URL (formato do nosso link customizado)
-      const hash = window.location.hash
-      const params = new URLSearchParams(hash.replace('#', ''))
-      const tokenHash = params.get('token_hash')
-      const type = params.get('type')
+      // Lê parâmetros do hash (#token_hash=...&type=recovery) E de query params (?token_hash=...&type=recovery)
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
+      const queryParams = new URLSearchParams(window.location.search)
 
+      const tokenHash = hashParams.get('token_hash') || queryParams.get('token_hash')
+      const type = hashParams.get('type') || queryParams.get('type')
+      const accessToken = hashParams.get('access_token') || queryParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token')
+
+      // Estratégia 1: token_hash (link direto que geramos)
       if (tokenHash && type === 'recovery') {
-        // Verifica o token_hash diretamente com o Supabase
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
           type: 'recovery',
         })
-
         if (verifyError) {
           setError('Link inválido ou expirado. Solicite um novo link de recuperação.')
         } else {
@@ -45,16 +50,12 @@ export default function ResetPassword() {
         return
       }
 
-      // Tenta processar access_token do hash (formato padrão do Supabase)
-      const accessToken = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
-
+      // Estratégia 2: access_token + refresh_token (action_link do Supabase)
       if (accessToken && refreshToken) {
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         })
-
         if (sessionError) {
           setError('Link inválido ou expirado. Solicite um novo link de recuperação.')
         } else {
@@ -64,29 +65,29 @@ export default function ResetPassword() {
         return
       }
 
-      // Fallback: escuta o evento PASSWORD_RECOVERY do Supabase
-      // (quando o link passa pelo domínio do Supabase e redireciona com token no hash)
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Estratégia 3: aguarda evento PASSWORD_RECOVERY (Supabase processa o hash automaticamente)
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY' && session) {
           setSessionReady(true)
           setVerifying(false)
+          clearTimeout(timeout)
         }
       })
+      subscription = sub
 
-      // Timeout: se em 5 segundos não receber o evento, mostra erro
-      const timeout = setTimeout(() => {
+      timeout = setTimeout(() => {
         setVerifying(false)
         setError('Link inválido ou expirado. Solicite um novo link de recuperação.')
-        subscription.unsubscribe()
-      }, 5000)
-
-      return () => {
-        clearTimeout(timeout)
-        subscription.unsubscribe()
-      }
+        sub.unsubscribe()
+      }, 8000)
     }
 
     processToken()
+
+    return () => {
+      clearTimeout(timeout)
+      subscription?.unsubscribe()
+    }
   }, [])
 
   const handleReset = async (e: React.FormEvent) => {

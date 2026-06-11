@@ -63,39 +63,28 @@ Deno.serve(async (req) => {
       })
     }
 
-    // O Supabase retorna action_link (link completo do supabase.co que redireciona para o app)
-    // e também token_hash + hashed_token que podemos usar para montar nosso próprio link
+    // O Supabase retorna action_link que redireciona para o app com access_token no hash
     const recoveryLink = linkData.action_link
-    const tokenHash = linkData.hashed_token || linkData.token_hash
 
-    if (!recoveryLink && !tokenHash) {
+    if (!recoveryLink) {
       return new Response(JSON.stringify({ error: 'Não foi possível gerar o link de recuperação' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Monta o link direto para o app com o token
-    // Formato: https://www.mototrackpro.com.br/reset-password#access_token=...&type=recovery
-    // Usando token_hash para montar link direto que não passa pelo supabase.co
+    // Garante que o redirect_to no action_link aponte para o domínio correto
     let finalLink = recoveryLink
-
-    if (tokenHash) {
-      // Link direto para o app — o Supabase JS no cliente processa o hash automaticamente
-      finalLink = `https://www.mototrackpro.com.br/reset-password#token_hash=${tokenHash}&type=recovery`
-    } else if (recoveryLink) {
-      // Fallback: usa o action_link do Supabase (passa pelo supabase.co e redireciona)
-      // Garante que o redirect_to aponte para o domínio correto
-      try {
-        const url = new URL(recoveryLink)
-        const redirectParam = url.searchParams.get('redirect_to')
-        if (redirectParam && (redirectParam.includes('localhost') || !redirectParam.includes('mototrackpro'))) {
-          url.searchParams.set('redirect_to', finalRedirectTo)
-          finalLink = url.toString()
-        }
-      } catch {
-        // mantém o link original
+    try {
+      const url = new URL(recoveryLink)
+      const redirectParam = url.searchParams.get('redirect_to')
+      if (redirectParam) {
+        // Força o redirect para o domínio de produção
+        url.searchParams.set('redirect_to', finalRedirectTo)
+        finalLink = url.toString()
       }
+    } catch {
+      // mantém o link original
     }
 
     // Envia o email via Resend
