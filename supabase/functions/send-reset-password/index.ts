@@ -73,16 +73,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Garante que o redirect_to no action_link aponte para o domínio correto
+    // Força o redirect_to para o domínio de produção (sobrescreve qualquer localhost)
     let finalLink = recoveryLink
     try {
       const url = new URL(recoveryLink)
-      const redirectParam = url.searchParams.get('redirect_to')
-      if (redirectParam) {
-        // Força o redirect para o domínio de produção
-        url.searchParams.set('redirect_to', finalRedirectTo)
-        finalLink = url.toString()
-      }
+      url.searchParams.set('redirect_to', finalRedirectTo)
+      finalLink = url.toString()
     } catch {
       // mantém o link original
     }
