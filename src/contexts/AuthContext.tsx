@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
-    const redirectTo = 'https://www.mototrackpro.com.br/reset-password'
+    const redirectTo = 'https://www.mototrackpro.com.br/reset-password.html'
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
     const resendKey = import.meta.env.VITE_RESEND_API_KEY

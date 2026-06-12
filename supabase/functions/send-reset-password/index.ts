@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const resendApiKey = Deno.env.get('RESEND_API_KEY') || resendKey
-    const finalRedirectTo = redirectTo || 'https://www.mototrackpro.com.br/reset-password'
+    const finalRedirectTo = 'https://www.mototrackpro.com.br/reset-password.html'
 
     if (!supabaseUrl || !serviceRoleKey) {
       return new Response(JSON.stringify({ error: 'Configuração do servidor incompleta' }), {
