@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { useEffect } from 'react'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import NovaMoto from '@/pages/NovaMoto'
@@ -13,6 +14,20 @@ import SubscriptionFailure from '@/pages/SubscriptionFailure'
 import UnlockPage from '@/pages/admin/UnlockPage'
 import Perfil from '@/pages/Perfil'
 import ResetPassword from '@/pages/ResetPassword'
+
+function RecoveryRedirect() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash && hash.includes('type=recovery')) {
+      navigate('/reset-password' + hash, { replace: true })
+    }
+  }, [location.pathname])
+
+  return null
+}
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -30,7 +45,9 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Routes>
+    <>
+      <RecoveryRedirect />
+      <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin/unlock" element={<UnlockPage />} />
@@ -87,6 +104,7 @@ function AppRoutes() {
         }
       />
     </Routes>
+    </>
   )
 }
 
