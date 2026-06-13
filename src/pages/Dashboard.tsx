@@ -122,40 +122,44 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              <Card className="border-orange-200 bg-orange-50">
-                <CardHeader>
-                  <CardTitle className="text-lg">Pro Piloto</CardTitle>
-                  <CardDescription>R$ 19,90/mês</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="text-sm space-y-1">
-                    <li>✓ Motos ilimitadas</li>
-                    <li>✓ Controle de horímetro</li>
-                    <li>✓ Sistema de manutenção</li>
-                    <li>✓ Notificações</li>
-                  </ul>
-                  <Button className="w-full mt-4" onClick={() => navigate('/upgrade')}>
-                    Assinar Agora
-                  </Button>
-                </CardContent>
-              </Card>
-              <Card className="border-blue-200 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="text-lg">Oficina/Mecânico</CardTitle>
-                  <CardDescription>R$ 39,90/mês</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="text-sm space-y-1">
-                    <li>✓ Tudo do Pro Piloto</li>
-                    <li>✓ Acesso a motos de clientes</li>
-                    <li>✓ Registro de serviços</li>
-                    <li>✓ Histórico técnico</li>
-                  </ul>
-                  <Button className="w-full mt-4" onClick={() => navigate('/upgrade')}>
-                    Assinar Agora
-                  </Button>
-                </CardContent>
-              </Card>
+              {profile?.role === 'piloto' && (
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Pro Piloto</CardTitle>
+                    <CardDescription>R$ 19,90/mês</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="text-sm space-y-1">
+                      <li>✓ Motos ilimitadas</li>
+                      <li>✓ Controle de horímetro</li>
+                      <li>✓ Sistema de manutenção</li>
+                      <li>✓ Notificações</li>
+                    </ul>
+                    <Button className="w-full mt-4" onClick={() => navigate('/upgrade')}>
+                      Assinar Agora
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {profile?.role === 'mecanico' && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Oficina/Mecânico</CardTitle>
+                    <CardDescription>R$ 39,90/mês</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="text-sm space-y-1">
+                      <li>✓ Tudo do Pro Piloto</li>
+                      <li>✓ Acesso a motos de clientes</li>
+                      <li>✓ Registro de serviços</li>
+                      <li>✓ Histórico técnico</li>
+                    </ul>
+                    <Button className="w-full mt-4" onClick={() => navigate('/upgrade')}>
+                      Assinar Agora
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
             <Button variant="outline" className="w-full" onClick={handleSignOut}>
               Sair
