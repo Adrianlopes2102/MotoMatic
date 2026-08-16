@@ -59,30 +59,46 @@ export function AuthProvider({
   // ============================================================
 
   const loadProfile = async (userId: string) => {
+    console.log('🔵 loadProfile iniciou:', userId)
+
     try {
+      console.log('🟡 Tentando consultar tabela users...')
+
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
 
+      console.log('🟢 Resultado da consulta users:', {
+        data,
+        error,
+      })
+
       if (error) {
-        console.error('Erro ao carregar perfil:', error)
+        console.error('🔴 Erro ao carregar perfil:', error)
         setProfile(null)
         return
       }
 
       if (!data) {
         console.warn(
-          'Perfil do usuário ainda não encontrado na tabela users.'
+          '🟠 Perfil do usuário não encontrado na tabela users.'
         )
+
         setProfile(null)
         return
       }
 
+      console.log('✅ Perfil carregado com sucesso:', data)
+
       setProfile(data as UserProfile)
     } catch (error) {
-      console.error('Erro inesperado ao carregar perfil:', error)
+      console.error(
+        '🔴 Erro inesperado ao carregar perfil:',
+        error
+      )
+
       setProfile(null)
     }
   }
@@ -94,21 +110,39 @@ export function AuthProvider({
   useEffect(() => {
     let mounted = true
 
+    console.log('🔵 AuthProvider iniciado')
+
     const safetyTimeout = setTimeout(() => {
+      console.warn(
+        '🟠 Timeout de segurança da autenticação atingido.'
+      )
+
       if (mounted) {
         setLoading(false)
       }
     }, 10000)
 
     const initializeAuth = async () => {
+      console.log('🔵 Inicializando autenticação...')
+
       try {
+        console.log('🟡 Obtendo sessão do Supabase...')
+
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
 
+        console.log('🟢 Resultado getSession:', {
+          session,
+          error,
+        })
+
         if (error) {
-          console.error('Erro ao obter sessão:', error)
+          console.error(
+            '🔴 Erro ao obter sessão:',
+            error
+          )
 
           if (mounted) {
             setUser(null)
@@ -123,15 +157,31 @@ export function AuthProvider({
 
         const currentUser = session?.user ?? null
 
+        console.log(
+          '👤 Usuário atual:',
+          currentUser
+        )
+
         setUser(currentUser)
 
         if (currentUser) {
+          console.log(
+            '🟡 Usuário autenticado. Carregando perfil...'
+          )
+
           await loadProfile(currentUser.id)
         } else {
+          console.log(
+            '🟠 Nenhum usuário autenticado.'
+          )
+
           setProfile(null)
         }
       } catch (error) {
-        console.error('Erro ao inicializar autenticação:', error)
+        console.error(
+          '🔴 Erro ao inicializar autenticação:',
+          error
+        )
 
         if (mounted) {
           setUser(null)
@@ -143,6 +193,10 @@ export function AuthProvider({
         if (mounted) {
           setLoading(false)
         }
+
+        console.log(
+          '🟢 Inicialização da autenticação finalizada.'
+        )
       }
     }
 
@@ -152,25 +206,49 @@ export function AuthProvider({
     // OBSERVAR ALTERAÇÕES DE AUTENTICAÇÃO
     // ============================================================
 
+    console.log(
+      '🔵 Registrando observador de autenticação...'
+    )
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return
+    } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!mounted) return
 
-      const currentUser = session?.user ?? null
+        console.log(
+          '🔵 Alteração de autenticação:',
+          _event
+        )
 
-      setUser(currentUser)
+        const currentUser = session?.user ?? null
 
-      if (currentUser) {
-        await loadProfile(currentUser.id)
-      } else {
-        setProfile(null)
+        console.log(
+          '👤 Usuário após alteração:',
+          currentUser
+        )
+
+        setUser(currentUser)
+
+        if (currentUser) {
+          console.log(
+            '🟡 Carregando perfil após alteração de autenticação...'
+          )
+
+          await loadProfile(currentUser.id)
+        } else {
+          setProfile(null)
+        }
+
+        setLoading(false)
       }
-
-      setLoading(false)
-    })
+    )
 
     return () => {
+      console.log(
+        '🧹 Limpando AuthProvider...'
+      )
+
       mounted = false
       clearTimeout(safetyTimeout)
       subscription.unsubscribe()
@@ -187,20 +265,36 @@ export function AuthProvider({
   ): Promise<void> => {
     const cleanEmail = email.trim().toLowerCase()
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    })
+    console.log(
+      '🔵 Tentando fazer login:',
+      cleanEmail
+    )
+
+    const { error } =
+      await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      })
 
     if (error) {
+      console.error(
+        '🔴 Erro no login:',
+        error
+      )
+
       throw error
     }
+
+    console.log(
+      '✅ Login realizado com sucesso.'
+    )
   }
 
   // ============================================================
   // CADASTRO
   //
-  // O trigger do banco cria automaticamente o perfil em users.
+  // O trigger do banco cria automaticamente
+  // o perfil em users.
   // ============================================================
 
   const signUp = async (
@@ -226,19 +320,31 @@ export function AuthProvider({
       )
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: {
-        data: {
-          name: cleanName,
-          role,
+    console.log(
+      '🔵 Criando conta:',
+      cleanEmail
+    )
+
+    const { data, error } =
+      await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            name: cleanName,
+            role,
+          },
         },
-      },
-    })
+      })
 
     if (error) {
-      const message = error.message.toLowerCase()
+      console.error(
+        '🔴 Erro no cadastro:',
+        error
+      )
+
+      const message =
+        error.message.toLowerCase()
 
       if (
         message.includes('already registered') ||
@@ -269,10 +375,17 @@ export function AuthProvider({
       )
     }
 
+    console.log(
+      '✅ Conta criada:',
+      data.user.id
+    )
+
     if (data.session) {
       setUser(data.user)
 
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await new Promise((resolve) =>
+        setTimeout(resolve, 300)
+      )
 
       await loadProfile(data.user.id)
     }
@@ -283,14 +396,26 @@ export function AuthProvider({
   // ============================================================
 
   const signOut = async (): Promise<void> => {
-    const { error } = await supabase.auth.signOut()
+    console.log('🔵 Fazendo logout...')
+
+    const { error } =
+      await supabase.auth.signOut()
 
     if (error) {
+      console.error(
+        '🔴 Erro ao fazer logout:',
+        error
+      )
+
       throw error
     }
 
     setUser(null)
     setProfile(null)
+
+    console.log(
+      '✅ Logout realizado.'
+    )
   }
 
   // ============================================================
@@ -306,17 +431,16 @@ export function AuthProvider({
       throw new Error('Digite seu e-mail.')
     }
 
-    // Usa automaticamente o endereço onde o aplicativo está aberto.
-    //
-    // Local:
-    // http://localhost:8080/reset-password
-    //
-    // Produção:
-    // https://www.mototrackpro.com.br/reset-password
-    //
-    // Isso evita deixar o localhost preso ao endereço de produção
-    // durante os testes.
-    const redirectTo = `${window.location.origin}/reset-password`
+    const redirectTo =
+      `${window.location.origin}/reset-password`
+
+    console.log(
+      '🔵 Solicitando recuperação de senha:',
+      {
+        email: cleanEmail,
+        redirectTo,
+      }
+    )
 
     const { error } =
       await supabase.auth.resetPasswordForEmail(
@@ -327,8 +451,17 @@ export function AuthProvider({
       )
 
     if (error) {
+      console.error(
+        '🔴 Erro na recuperação de senha:',
+        error
+      )
+
       throw error
     }
+
+    console.log(
+      '✅ E-mail de recuperação solicitado.'
+    )
   }
 
   // ============================================================
@@ -356,7 +489,9 @@ export function AuthProvider({
         return true
       }
 
-      const trialEnd = new Date(profile.trial_ends_at)
+      const trialEnd =
+        new Date(profile.trial_ends_at)
+
       const now = new Date()
 
       return trialEnd > now
@@ -372,9 +507,18 @@ export function AuthProvider({
 
   const refreshProfile = async (): Promise<void> => {
     if (!user) {
+      console.log(
+        '🟠 refreshProfile chamado sem usuário.'
+      )
+
       setProfile(null)
       return
     }
+
+    console.log(
+      '🔵 Atualizando perfil:',
+      user.id
+    )
 
     await loadProfile(user.id)
   }
@@ -407,7 +551,8 @@ export function AuthProvider({
 // ============================================================
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context =
+    useContext(AuthContext)
 
   if (context === undefined) {
     throw new Error(
