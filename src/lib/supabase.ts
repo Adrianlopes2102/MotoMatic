@@ -1,12 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
 
-// Se não houver credenciais, cria um cliente mock para evitar erros
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : createClient('https://placeholder.supabase.co', 'placeholder-key')
+// Cliente Supabase usado pelo aplicativo
+// A Publishable Key é segura para uso no frontend.
+// NUNCA coloque uma Secret Key ou service_role aqui.
+export const supabase =
+  supabaseUrl && supabasePublishableKey
+    ? createClient(supabaseUrl, supabasePublishableKey)
+    : createClient(
+        'https://placeholder.supabase.co',
+        'placeholder-key'
+      )
 
 export type Database = {
   users: {
@@ -20,6 +27,7 @@ export type Database = {
     subscription_status: 'trial' | 'active' | 'expired'
     subscription_plan?: 'free' | 'pro_piloto' | 'oficina'
   }
+
   motos: {
     id: string
     user_id: string
@@ -31,6 +39,7 @@ export type Database = {
     horimetro: number
     created_at: string
   }
+
   manutencoes: {
     id: string
     moto_id: string
@@ -41,6 +50,7 @@ export type Database = {
     tipo_uso: 'leve' | 'medio' | 'pesado'
     created_at: string
   }
+
   registros_manutencao: {
     id: string
     manutencao_id: string
@@ -54,6 +64,7 @@ export type Database = {
     fotos?: string[]
     created_at: string
   }
+
   trilhas: {
     id: string
     moto_id: string
@@ -65,6 +76,7 @@ export type Database = {
     observacoes?: string
     created_at: string
   }
+
   liberacoes_mecanico: {
     id: string
     moto_id: string

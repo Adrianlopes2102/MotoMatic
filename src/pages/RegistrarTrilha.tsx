@@ -168,22 +168,31 @@ export default function RegistrarTrilha() {
                   <SelectTrigger className="bg-slate-900 border-slate-700 text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="leve">
+                  <SelectContent className="bg-slate-800 border-slate-700 text-white shadow-xl">
+                    <SelectItem
+                      value="leve"
+                      className="text-white focus:bg-slate-700 focus:text-white data-[highlighted]:bg-slate-700 data-[highlighted]:text-white"
+                    >
                       <div>
-                        <p className="font-medium">Leve</p>
+                        <p className="font-medium text-white">Leve</p>
                         <p className="text-xs text-slate-400">Trilha suave, terreno fácil (x0.8)</p>
                       </div>
                     </SelectItem>
-                    <SelectItem value="medio">
+                    <SelectItem
+                      value="medio"
+                      className="text-white focus:bg-slate-700 focus:text-white data-[highlighted]:bg-slate-700 data-[highlighted]:text-white"
+                    >
                       <div>
-                        <p className="font-medium">Médio</p>
+                        <p className="font-medium text-white">Médio</p>
                         <p className="text-xs text-slate-400">Trilha normal (x1.0)</p>
                       </div>
                     </SelectItem>
-                    <SelectItem value="pesado">
+                    <SelectItem
+                      value="pesado"
+                      className="text-white focus:bg-slate-700 focus:text-white data-[highlighted]:bg-slate-700 data-[highlighted]:text-white"
+                    >
                       <div>
-                        <p className="font-medium">Pesado</p>
+                        <p className="font-medium text-white">Pesado</p>
                         <p className="text-xs text-slate-400">Trilha extrema, enduro, motocross (x1.5)</p>
                       </div>
                     </SelectItem>

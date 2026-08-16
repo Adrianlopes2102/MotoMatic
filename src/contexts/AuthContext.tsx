@@ -1,73 +1,62 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from 'react'
+
 import { supabase } from '@/lib/supabase'
-import { User } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 
 interface UserProfile {
   id: string
   email: string
   role: 'piloto' | 'mecanico' | 'admin'
   name: string
-  phone?: string
-  trial_ends_at?: string
+  phone?: string | null
+  created_at?: string
+  trial_ends_at?: string | null
   subscription_status: 'trial' | 'active' | 'expired'
-  subscription_plan?: 'free' | 'pro_piloto' | 'oficina'
+  subscription_plan?: 'free' | 'pro_piloto' | 'oficina' | null
 }
 
 interface AuthContextType {
   user: User | null
   profile: UserProfile | null
   loading: boolean
+
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, name: string, role: 'piloto' | 'mecanico') => Promise<void>
+
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+    role: 'piloto' | 'mecanico'
+  ) => Promise<void>
+
   signOut: () => Promise<void>
+
   resetPassword: (email: string) => Promise<void>
+
   isSubscriptionActive: () => boolean
+
   refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    // Timeout de segurança: se em 10s o loading não terminar, força false
-    const safetyTimeout = setTimeout(() => {
-      setLoading(false)
-    }, 10000)
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        loadProfile(session.user.id)
-      } else {
-        clearTimeout(safetyTimeout)
-        setLoading(false)
-      }
-    }).catch(() => {
-      clearTimeout(safetyTimeout)
-      setLoading(false)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        loadProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setLoading(false)
-      }
-    })
-
-    return () => {
-      clearTimeout(safetyTimeout)
-      subscription.unsubscribe()
-    }
-  }, [])
+  // ============================================================
+  // CARREGAR PERFIL DO USUÁRIO
+  // ============================================================
 
   const loadProfile = async (userId: string) => {
     try {
@@ -75,163 +64,324 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
 
       if (error) {
-        // Se o perfil não existe, cria um perfil padrão
-        if (error.code === 'PGRST116') {
-          const { data: authUser } = await supabase.auth.getUser()
-          if (authUser.user) {
-            const trialEndsAt = new Date()
-            trialEndsAt.setDate(trialEndsAt.getDate() + 7)
-
-            const { data: newProfile, error: insertError } = await supabase
-              .from('users')
-              .insert({
-                id: userId,
-                email: authUser.user.email!,
-                name: authUser.user.email?.split('@')[0] || 'Usuário',
-                role: 'piloto',
-                trial_ends_at: trialEndsAt.toISOString(),
-                subscription_status: 'trial',
-                subscription_plan: 'free',
-              })
-              .select()
-              .single()
-
-            if (insertError) {
-              console.error('Erro ao criar perfil:', insertError)
-              // Mesmo com erro, libera o loading para não travar
-              setLoading(false)
-              return
-            }
-            setProfile(newProfile)
-            return
-          }
-        }
-        // Qualquer outro erro: loga e libera o loading
         console.error('Erro ao carregar perfil:', error)
-        setLoading(false)
+        setProfile(null)
         return
       }
-      setProfile(data)
+
+      if (!data) {
+        console.warn(
+          'Perfil do usuário ainda não encontrado na tabela users.'
+        )
+        setProfile(null)
+        return
+      }
+
+      setProfile(data as UserProfile)
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error)
-    } finally {
-      setLoading(false)
+      console.error('Erro inesperado ao carregar perfil:', error)
+      setProfile(null)
     }
   }
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) throw error
-  }
+  // ============================================================
+  // INICIALIZAÇÃO DA AUTENTICAÇÃO
+  // ============================================================
 
-  const signUp = async (email: string, password: string, name: string, role: 'piloto' | 'mecanico') => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
+  useEffect(() => {
+    let mounted = true
+
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) {
+        setLoading(false)
+      }
+    }, 10000)
+
+    const initializeAuth = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error('Erro ao obter sessão:', error)
+
+          if (mounted) {
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+          }
+
+          return
+        }
+
+        if (!mounted) return
+
+        const currentUser = session?.user ?? null
+
+        setUser(currentUser)
+
+        if (currentUser) {
+          await loadProfile(currentUser.id)
+        } else {
+          setProfile(null)
+        }
+      } catch (error) {
+        console.error('Erro ao inicializar autenticação:', error)
+
+        if (mounted) {
+          setUser(null)
+          setProfile(null)
+        }
+      } finally {
+        clearTimeout(safetyTimeout)
+
+        if (mounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    initializeAuth()
+
+    // ============================================================
+    // OBSERVAR ALTERAÇÕES DE AUTENTICAÇÃO
+    // ============================================================
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return
+
+      const currentUser = session?.user ?? null
+
+      setUser(currentUser)
+
+      if (currentUser) {
+        await loadProfile(currentUser.id)
+      } else {
+        setProfile(null)
+      }
+
+      setLoading(false)
+    })
+
+    return () => {
+      mounted = false
+      clearTimeout(safetyTimeout)
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
+
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<void> => {
+    const cleanEmail = email.trim().toLowerCase()
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
       password,
     })
 
     if (error) {
-      if (error.message.includes('already registered') || error.message.includes('already been registered')) {
-        throw new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.')
+      throw error
+    }
+  }
+
+  // ============================================================
+  // CADASTRO
+  //
+  // O trigger do banco cria automaticamente o perfil em users.
+  // ============================================================
+
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    role: 'piloto' | 'mecanico'
+  ): Promise<void> => {
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanName = name.trim()
+
+    if (!cleanEmail) {
+      throw new Error('Digite seu e-mail.')
+    }
+
+    if (!cleanName) {
+      throw new Error('Digite seu nome.')
+    }
+
+    if (password.length < 6) {
+      throw new Error(
+        'A senha precisa ter pelo menos 6 caracteres.'
+      )
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          name: cleanName,
+          role,
+        },
+      },
+    })
+
+    if (error) {
+      const message = error.message.toLowerCase()
+
+      if (
+        message.includes('already registered') ||
+        message.includes('already been registered') ||
+        message.includes('user already registered')
+      ) {
+        throw new Error(
+          'Este email já está cadastrado. Tente fazer login ou recuperar sua senha.'
+        )
       }
+
       throw error
     }
 
-    // Supabase retorna identities vazio quando o email já existe (sem lançar erro)
-    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
-      throw new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.')
+    if (
+      data.user &&
+      data.user.identities &&
+      data.user.identities.length === 0
+    ) {
+      throw new Error(
+        'Este email já está cadastrado. Tente fazer login ou recuperar sua senha.'
+      )
     }
 
-    if (data.user) {
-      const trialEndsAt = new Date()
-      trialEndsAt.setDate(trialEndsAt.getDate() + 7)
+    if (!data.user) {
+      throw new Error(
+        'Não foi possível criar a conta. Tente novamente.'
+      )
+    }
 
-      const { error: profileError } = await supabase.from('users').insert({
-        id: data.user.id,
-        email,
-        name,
-        role,
-        trial_ends_at: trialEndsAt.toISOString(),
-        subscription_status: 'trial',
-        subscription_plan: 'free',
-      })
+    if (data.session) {
+      setUser(data.user)
 
-      if (profileError) throw profileError
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
+      await loadProfile(data.user.id)
     }
   }
 
-  const signOut = async () => {
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
+  const signOut = async (): Promise<void> => {
     const { error } = await supabase.auth.signOut()
-    if (error) throw error
+
+    if (error) {
+      throw error
+    }
+
+    setUser(null)
+    setProfile(null)
   }
 
-  const resetPassword = async (email: string) => {
-    const redirectTo = 'https://www.mototrackpro.com.br/reset-password.html'
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    const resendKey = import.meta.env.VITE_RESEND_API_KEY
+  // ============================================================
+  // RECUPERAÇÃO DE SENHA
+  // ============================================================
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Configuração do servidor incompleta.')
+  const resetPassword = async (
+    email: string
+  ): Promise<void> => {
+    const cleanEmail = email.trim().toLowerCase()
+
+    if (!cleanEmail) {
+      throw new Error('Digite seu e-mail.')
     }
 
-    // Chama a Edge Function passando a chave do Resend como parâmetro
-    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/send-reset-password`
+    // Usa automaticamente o endereço onde o aplicativo está aberto.
+    //
+    // Local:
+    // http://localhost:8080/reset-password
+    //
+    // Produção:
+    // https://www.mototrackpro.com.br/reset-password
+    //
+    // Isso evita deixar o localhost preso ao endereço de produção
+    // durante os testes.
+    const redirectTo = `${window.location.origin}/reset-password`
 
-    let response: Response
-    try {
-      response = await fetch(edgeFunctionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({ email, redirectTo, resendKey }),
-      })
-    } catch (networkErr: any) {
-      throw new Error(`Erro de conexão: ${networkErr.message}`)
-    }
+    const { error } =
+      await supabase.auth.resetPasswordForEmail(
+        cleanEmail,
+        {
+          redirectTo,
+        }
+      )
 
-    let data: any
-    try {
-      data = await response.json()
-    } catch {
-      throw new Error(`Resposta inválida do servidor (status ${response.status})`)
-    }
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || `Erro ao enviar email (status ${response.status})`)
+    if (error) {
+      throw error
     }
   }
 
-  const refreshProfile = async () => {
-    if (user) {
-      await loadProfile(user.id)
+  // ============================================================
+  // VERIFICAR ASSINATURA / TRIAL
+  // ============================================================
+
+  const isSubscriptionActive = (): boolean => {
+    if (!profile) {
+      return false
     }
-  }
 
-  const isSubscriptionActive = () => {
-    if (!profile) return false
-    if (profile.role === 'admin') return true
-    if (profile.subscription_status === 'active') return true
+    // Administrador possui acesso total.
+    if (profile.role === 'admin') {
+      return true
+    }
 
-    // Se está em trial, verifica a data
+    // Assinatura paga ativa.
+    if (profile.subscription_status === 'active') {
+      return true
+    }
+
+    // Verificar período de teste.
     if (profile.subscription_status === 'trial') {
-      if (!profile.trial_ends_at) return true // Se não tem data de término, libera
+      if (!profile.trial_ends_at) {
+        return true
+      }
+
       const trialEnd = new Date(profile.trial_ends_at)
       const now = new Date()
+
       return trialEnd > now
     }
 
+    // Expirado.
     return false
   }
+
+  // ============================================================
+  // ATUALIZAR PERFIL
+  // ============================================================
+
+  const refreshProfile = async (): Promise<void> => {
+    if (!user) {
+      setProfile(null)
+      return
+    }
+
+    await loadProfile(user.id)
+  }
+
+  // ============================================================
+  // PROVIDER
+  // ============================================================
 
   return (
     <AuthContext.Provider
@@ -252,10 +402,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ============================================================
+// HOOK useAuth
+// ============================================================
+
 export function useAuth() {
   const context = useContext(AuthContext)
+
   if (context === undefined) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider')
+    throw new Error(
+      'useAuth deve ser usado dentro de um AuthProvider'
+    )
   }
+
   return context
 }

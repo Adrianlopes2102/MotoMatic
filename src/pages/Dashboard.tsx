@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Bike, Plus, LogOut, User } from 'lucide-react'
+import { Bike, Plus, LogOut, User, Clock3 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -19,6 +19,7 @@ interface Moto {
 export default function Dashboard() {
   const { user, profile, signOut, isSubscriptionActive } = useAuth()
   const navigate = useNavigate()
+
   const [motos, setMotos] = useState<Moto[]>([])
   const [loading, setLoading] = useState(true)
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
@@ -29,11 +30,9 @@ export default function Dashboard() {
     const timer = setTimeout(() => {
       if (!profile) setProfileTimeout(true)
     }, 8000)
+
     return () => clearTimeout(timer)
   }, [profile])
-
-  // Removido: ativação automática por pending_plan sem verificação de pagamento
-  // A ativação só ocorre via webhook do Mercado Pago ou após confirmação real do pagamento
 
   useEffect(() => {
     if (!user) {
@@ -44,19 +43,29 @@ export default function Dashboard() {
     if (profile?.subscription_status === 'trial' && profile.trial_ends_at) {
       const trialEnd = new Date(profile.trial_ends_at)
       const now = new Date()
-      const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      const daysLeft = Math.ceil(
+        (trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      )
+
       setTrialDaysLeft(daysLeft > 0 ? daysLeft : 0)
+    } else {
+      setTrialDaysLeft(null)
     }
 
-    loadMotos()
+    // Só carrega depois que temos usuário + perfil.
+    if (profile?.role) {
+      loadMotos()
+    }
   }, [user, profile, navigate])
 
   const loadMotos = async () => {
-    if (!user) return
+    if (!user || !profile?.role) return
+
+    setLoading(true)
 
     try {
-      if (profile?.role === 'piloto') {
-        // Piloto vê suas próprias motos
+      if (profile.role === 'piloto') {
+        // Piloto vê suas próprias motos.
         const { data, error } = await supabase
           .from('motos')
           .select('*')
@@ -64,12 +73,19 @@ export default function Dashboard() {
           .order('created_at', { ascending: false })
 
         if (error) throw error
+
         setMotos(data || [])
-      } else if (profile?.role === 'mecanico') {
-        // Mecânico vê motos liberadas usando função RPC
-        const { data, error } = await supabase.rpc('get_motos_liberadas_mecanico', {
-          mecanico_uuid: user.id
-        })
+        return
+      }
+
+      if (profile.role === 'mecanico') {
+        // A RPC existente no Supabase usa o parâmetro p_mecanico_id.
+        const { data, error } = await supabase.rpc(
+          'get_motos_liberadas_mecanico',
+          {
+            p_mecanico_id: user.id,
+          }
+        )
 
         if (error) {
           console.error('Erro ao buscar motos liberadas:', error)
@@ -77,8 +93,28 @@ export default function Dashboard() {
           return
         }
 
-        setMotos(data || [])
+        /*
+         * A RPC retorna moto_id, e o Dashboard trabalha com id.
+         * Normalizamos aqui para que o clique da moto navegue usando
+         * o ID real da tabela motos.
+         */
+        const motosNormalizadas: Moto[] = (data || [])
+          .map((moto: any) => ({
+            id: moto.moto_id || moto.id,
+            marca: moto.marca,
+            modelo: moto.modelo,
+            ano: Number(moto.ano),
+            horimetro: Number(moto.horimetro || 0),
+            foto_url: moto.foto_url || undefined,
+          }))
+          .filter((moto: Moto) => Boolean(moto.id))
+
+        setMotos(motosNormalizadas)
+        return
       }
+
+      // Admin: mantém a lista vazia neste Dashboard.
+      setMotos([])
     } catch (error) {
       console.error('Erro ao carregar motos:', error)
       setMotos([])
@@ -92,19 +128,26 @@ export default function Dashboard() {
     navigate('/login')
   }
 
-  // Aguarda o profile carregar antes de verificar a assinatura
+  // Aguarda o profile carregar antes de verificar a assinatura.
   if (!profile) {
     if (profileTimeout) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
           <div className="text-center">
-            <p className="text-white text-lg mb-2">Erro ao carregar perfil</p>
-            <p className="text-slate-400 text-sm mb-6">Verifique sua conexão e tente novamente</p>
-            <Button onClick={() => window.location.reload()}>Recarregar</Button>
+            <p className="text-white text-lg mb-2">
+              Erro ao carregar perfil
+            </p>
+            <p className="text-slate-400 text-sm mb-6">
+              Verifique sua conexão e tente novamente
+            </p>
+            <Button onClick={() => window.location.reload()}>
+              Recarregar
+            </Button>
           </div>
         </div>
       )
     }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <p className="text-white">Carregando...</p>
@@ -112,17 +155,20 @@ export default function Dashboard() {
     )
   }
 
-  if (!isSubscriptionActive() && profile?.role !== 'admin') {
+  if (!isSubscriptionActive() && profile.role !== 'admin') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 via-red-500 to-yellow-500 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle>Período de Teste Expirado</CardTitle>
-            <CardDescription>Assine um plano para continuar usando o MotoTrack Pro</CardDescription>
+            <CardDescription>
+              Assine um plano para continuar usando o MotoTrack Pro
+            </CardDescription>
           </CardHeader>
+
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              {profile?.role === 'piloto' && (
+              {profile.role === 'piloto' && (
                 <Card className="border-orange-200 bg-orange-50">
                   <CardHeader>
                     <CardTitle className="text-lg">Pro Piloto</CardTitle>
@@ -135,18 +181,26 @@ export default function Dashboard() {
                       <li>✓ Sistema de manutenção</li>
                       <li>✓ Notificações</li>
                     </ul>
-                    <Button className="w-full mt-4" onClick={() => navigate('/upgrade')}>
+
+                    <Button
+                      className="w-full mt-4"
+                      onClick={() => navigate('/upgrade')}
+                    >
                       Assinar Agora
                     </Button>
                   </CardContent>
                 </Card>
               )}
-              {profile?.role === 'mecanico' && (
+
+              {profile.role === 'mecanico' && (
                 <Card className="border-blue-200 bg-blue-50">
                   <CardHeader>
-                    <CardTitle className="text-lg">Oficina/Mecânico</CardTitle>
+                    <CardTitle className="text-lg">
+                      Oficina/Mecânico
+                    </CardTitle>
                     <CardDescription>R$ 39,90/mês</CardDescription>
                   </CardHeader>
+
                   <CardContent>
                     <ul className="text-sm space-y-1">
                       <li>✓ Tudo do Pro Piloto</li>
@@ -154,14 +208,23 @@ export default function Dashboard() {
                       <li>✓ Registro de serviços</li>
                       <li>✓ Histórico técnico</li>
                     </ul>
-                    <Button className="w-full mt-4" onClick={() => navigate('/upgrade')}>
+
+                    <Button
+                      className="w-full mt-4"
+                      onClick={() => navigate('/upgrade')}
+                    >
                       Assinar Agora
                     </Button>
                   </CardContent>
                 </Card>
               )}
             </div>
-            <Button variant="outline" className="w-full" onClick={handleSignOut}>
+
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleSignOut}
+            >
               Sair
             </Button>
           </CardContent>
@@ -176,16 +239,33 @@ export default function Dashboard() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Bike className="h-8 w-8 text-orange-500" />
+
             <div>
-              <h1 className="text-xl font-bold text-white">MotoTrack Pro</h1>
-              <p className="text-xs text-slate-400">{profile?.name}</p>
+              <h1 className="text-xl font-bold text-white">
+                MotoTrack Pro
+              </h1>
+              <p className="text-xs text-slate-400">
+                {profile.name}
+              </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-white" onClick={() => navigate('/perfil')}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white"
+              onClick={() => navigate('/perfil')}
+            >
               <User className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-white" onClick={handleSignOut}>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white"
+              onClick={handleSignOut}
+            >
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
@@ -193,38 +273,115 @@ export default function Dashboard() {
       </nav>
 
       <div className="container mx-auto px-4 py-8">
-        {profile?.subscription_status === 'trial' && trialDaysLeft !== null && (
-          <Card className="mb-6 border-yellow-500 bg-yellow-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-yellow-900">
-                    {trialDaysLeft > 0
-                      ? `${trialDaysLeft} ${trialDaysLeft === 1 ? 'dia' : 'dias'} restantes no período de teste`
-                      : 'Último dia de teste!'}
-                  </p>
-                  <p className="text-sm text-yellow-700 mt-1">Assine agora e continue aproveitando</p>
+        {profile.subscription_status === 'trial' &&
+          trialDaysLeft !== null && (
+            <Card className="mb-6 overflow-hidden border-orange-500/60 bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 shadow-lg shadow-orange-500/10">
+              <CardContent className="p-0">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-orange-400 via-orange-500 to-orange-600" />
+
+                  <div className="p-5 sm:p-6">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-orange-500/30 bg-orange-500/10">
+                          <Clock3 className="h-6 w-6 text-orange-500" />
+                        </div>
+
+                        <div>
+                          <div className="mb-1 flex items-center gap-2">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-orange-400">
+                              Período de teste
+                            </p>
+
+                            <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold text-orange-300">
+                              ATIVO
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <span className="text-3xl font-extrabold tracking-tight text-white">
+                              {trialDaysLeft > 0 ? trialDaysLeft : 1}
+                            </span>
+
+                            <span className="text-lg font-semibold text-slate-200">
+                              {trialDaysLeft === 1
+                                ? 'dia restante'
+                                : 'dias restantes'}
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-sm text-slate-400">
+                            Aproveite todos os recursos do MotoTrack Pro
+                            durante o seu teste.
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => navigate('/upgrade')}
+                        className="w-full gap-2 bg-orange-500 font-semibold text-white shadow-md shadow-orange-500/20 hover:bg-orange-600 sm:w-auto"
+                      >
+                        Assinar agora
+                        <span aria-hidden="true">→</span>
+                      </Button>
+                    </div>
+
+                    <div className="mt-5">
+                      <div className="mb-2 flex items-center justify-between text-xs">
+                        <span className="text-slate-400">
+                          Progresso do teste
+                        </span>
+
+                        <span className="font-semibold text-orange-400">
+                          {Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              ((7 - trialDaysLeft) / 7) * 100
+                            )
+                          ).toFixed(0)}
+                          %
+                        </span>
+                      </div>
+
+                      <Progress
+                        value={Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            ((7 - trialDaysLeft) / 7) * 100
+                          )
+                        )}
+                        className="h-2 bg-slate-700"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <Button onClick={() => navigate('/upgrade')}>Assinar</Button>
-              </div>
-              {trialDaysLeft !== null && <Progress value={(7 - trialDaysLeft) * (100 / 7)} className="mt-3" />}
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          )}
 
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-white">
-              {profile?.role === 'piloto' && 'Minhas Motos'}
-              {profile?.role === 'mecanico' && 'Motos dos Clientes'}
-              {profile?.role === 'admin' && 'Dashboard Admin'}
+              {profile.role === 'piloto' && 'Minhas Motos'}
+              {profile.role === 'mecanico' && 'Motos dos Clientes'}
+              {profile.role === 'admin' && 'Dashboard Admin'}
             </h2>
+
             <p className="text-slate-400">
-              {motos.length} {motos.length === 1 ? 'moto cadastrada' : 'motos cadastradas'}
+              {motos.length}{' '}
+              {motos.length === 1
+                ? 'moto cadastrada'
+                : 'motos cadastradas'}
             </p>
           </div>
-          {profile?.role === 'piloto' && (
-            <Button onClick={() => navigate('/motos/nova')} className="gap-2">
+
+          {profile.role === 'piloto' && (
+            <Button
+              onClick={() => navigate('/motos/nova')}
+              className="gap-2"
+            >
               <Plus className="h-5 w-5" />
               Nova Moto
             </Button>
@@ -232,18 +389,26 @@ export default function Dashboard() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-slate-400">Carregando...</div>
+          <div className="text-center py-12 text-slate-400">
+            Carregando...
+          </div>
         ) : motos.length === 0 ? (
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="py-12 text-center">
               <Bike className="h-16 w-16 text-slate-600 mx-auto mb-4" />
+
               <p className="text-slate-400 mb-4">
-                {profile?.role === 'piloto'
+                {profile.role === 'piloto'
                   ? 'Você ainda não cadastrou nenhuma moto'
                   : 'Nenhuma moto liberada para você'}
               </p>
-              {profile?.role === 'piloto' && (
-                <Button onClick={() => navigate('/motos/nova')}>Cadastrar Primeira Moto</Button>
+
+              {profile.role === 'piloto' && (
+                <Button
+                  onClick={() => navigate('/motos/nova')}
+                >
+                  Cadastrar Primeira Moto
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -257,21 +422,35 @@ export default function Dashboard() {
               >
                 <CardHeader>
                   {moto.foto_url ? (
-                    <img src={moto.foto_url} alt={moto.modelo} className="w-full h-48 object-cover rounded-lg mb-4" />
+                    <img
+                      src={moto.foto_url}
+                      alt={moto.modelo}
+                      className="w-full h-48 object-cover rounded-lg mb-4"
+                    />
                   ) : (
                     <div className="w-full h-48 bg-slate-700 rounded-lg flex items-center justify-center mb-4">
                       <Bike className="h-16 w-16 text-slate-600" />
                     </div>
                   )}
+
                   <CardTitle className="text-white">
                     {moto.marca} {moto.modelo}
                   </CardTitle>
-                  <CardDescription className="text-slate-400">Ano {moto.ano}</CardDescription>
+
+                  <CardDescription className="text-slate-400">
+                    Ano {moto.ano}
+                  </CardDescription>
                 </CardHeader>
+
                 <CardContent>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Horímetro</span>
-                    <span className="text-orange-500 font-bold">{moto.horimetro}h</span>
+                    <span className="text-slate-400">
+                      Horímetro
+                    </span>
+
+                    <span className="text-orange-500 font-bold">
+                      {moto.horimetro}h
+                    </span>
                   </div>
                 </CardContent>
               </Card>
