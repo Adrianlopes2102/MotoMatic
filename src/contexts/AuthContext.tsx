@@ -17,7 +17,11 @@ interface UserProfile {
   created_at?: string
   trial_ends_at?: string | null
   subscription_status: 'trial' | 'active' | 'expired'
-  subscription_plan?: 'free' | 'pro_piloto' | 'oficina' | null
+  subscription_plan?:
+    | 'free'
+    | 'pro_piloto'
+    | 'oficina'
+    | null
 }
 
 interface AuthContextType {
@@ -25,7 +29,10 @@ interface AuthContextType {
   profile: UserProfile | null
   loading: boolean
 
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<void>
 
   signUp: (
     email: string,
@@ -43,7 +50,8 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext =
+  createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({
   children,
@@ -51,18 +59,22 @@ export function AuthProvider({
   children: React.ReactNode
 }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] =
+    useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   // ============================================================
-  // CARREGAR PERFIL DO USUÁRIO
+  // CARREGAR PERFIL
   // ============================================================
 
-  const loadProfile = async (userId: string) => {
-    console.log('🔵 loadProfile iniciou:', userId)
-
+  const loadProfile = async (
+    userId: string
+  ): Promise<void> => {
     try {
-      console.log('🟡 Tentando consultar tabela users...')
+      console.log(
+        '[Auth] Carregando perfil do usuário:',
+        userId
+      )
 
       const { data, error } = await supabase
         .from('users')
@@ -70,32 +82,31 @@ export function AuthProvider({
         .eq('id', userId)
         .maybeSingle()
 
-      console.log('🟢 Resultado da consulta users:', {
-        data,
-        error,
-      })
-
       if (error) {
-        console.error('🔴 Erro ao carregar perfil:', error)
-        setProfile(null)
-        return
-      }
-
-      if (!data) {
-        console.warn(
-          '🟠 Perfil do usuário não encontrado na tabela users.'
+        console.error(
+          '[Auth] Erro ao carregar perfil:',
+          error
         )
 
         setProfile(null)
         return
       }
 
-      console.log('✅ Perfil carregado com sucesso:', data)
+      if (!data) {
+        console.warn(
+          '[Auth] Perfil não encontrado na tabela users.'
+        )
+
+        setProfile(null)
+        return
+      }
+
+      console.log('[Auth] Perfil carregado com sucesso.')
 
       setProfile(data as UserProfile)
     } catch (error) {
       console.error(
-        '🔴 Erro inesperado ao carregar perfil:',
+        '[Auth] Erro inesperado ao carregar perfil:',
         error
       )
 
@@ -104,82 +115,53 @@ export function AuthProvider({
   }
 
   // ============================================================
-  // INICIALIZAÇÃO DA AUTENTICAÇÃO
+  // INICIALIZAÇÃO
   // ============================================================
 
   useEffect(() => {
     let mounted = true
 
-    console.log('🔵 AuthProvider iniciado')
-
-    const safetyTimeout = setTimeout(() => {
-      console.warn(
-        '🟠 Timeout de segurança da autenticação atingido.'
-      )
-
-      if (mounted) {
-        setLoading(false)
-      }
-    }, 10000)
-
     const initializeAuth = async () => {
-      console.log('🔵 Inicializando autenticação...')
-
       try {
-        console.log('🟡 Obtendo sessão do Supabase...')
+        console.log('[Auth] Inicializando autenticação...')
 
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
 
-        console.log('🟢 Resultado getSession:', {
-          session,
-          error,
-        })
+        if (!mounted) return
 
         if (error) {
           console.error(
-            '🔴 Erro ao obter sessão:',
+            '[Auth] Erro ao obter sessão:',
             error
           )
 
-          if (mounted) {
-            setUser(null)
-            setProfile(null)
-            setLoading(false)
-          }
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
 
           return
         }
 
-        if (!mounted) return
-
         const currentUser = session?.user ?? null
 
         console.log(
-          '👤 Usuário atual:',
-          currentUser
+          '[Auth] Usuário encontrado:',
+          currentUser?.id ?? 'nenhum'
         )
 
         setUser(currentUser)
 
         if (currentUser) {
-          console.log(
-            '🟡 Usuário autenticado. Carregando perfil...'
-          )
-
           await loadProfile(currentUser.id)
         } else {
-          console.log(
-            '🟠 Nenhum usuário autenticado.'
-          )
-
           setProfile(null)
         }
       } catch (error) {
         console.error(
-          '🔴 Erro ao inicializar autenticação:',
+          '[Auth] Erro ao inicializar autenticação:',
           error
         )
 
@@ -188,15 +170,9 @@ export function AuthProvider({
           setProfile(null)
         }
       } finally {
-        clearTimeout(safetyTimeout)
-
         if (mounted) {
           setLoading(false)
         }
-
-        console.log(
-          '🟢 Inicialização da autenticação finalizada.'
-        )
       }
     }
 
@@ -206,51 +182,39 @@ export function AuthProvider({
     // OBSERVAR ALTERAÇÕES DE AUTENTICAÇÃO
     // ============================================================
 
-    console.log(
-      '🔵 Registrando observador de autenticação...'
-    )
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         if (!mounted) return
-
-        console.log(
-          '🔵 Alteração de autenticação:',
-          _event
-        )
 
         const currentUser = session?.user ?? null
 
         console.log(
-          '👤 Usuário após alteração:',
-          currentUser
+          '[Auth] Alteração de autenticação:',
+          _event
         )
 
         setUser(currentUser)
 
-        if (currentUser) {
-          console.log(
-            '🟡 Carregando perfil após alteração de autenticação...'
-          )
-
-          await loadProfile(currentUser.id)
-        } else {
+        if (!currentUser) {
           setProfile(null)
+          setLoading(false)
+          return
         }
+
+        // IMPORTANTE:
+        // Não usamos await aqui.
+        // O callback do Supabase não deve ficar esperando
+        // outra chamada ao Supabase.
+        void loadProfile(currentUser.id)
 
         setLoading(false)
       }
     )
 
     return () => {
-      console.log(
-        '🧹 Limpando AuthProvider...'
-      )
-
       mounted = false
-      clearTimeout(safetyTimeout)
       subscription.unsubscribe()
     }
   }, [])
@@ -263,12 +227,11 @@ export function AuthProvider({
     email: string,
     password: string
   ): Promise<void> => {
-    const cleanEmail = email.trim().toLowerCase()
+    const cleanEmail = email
+      .trim()
+      .toLowerCase()
 
-    console.log(
-      '🔵 Tentando fazer login:',
-      cleanEmail
-    )
+    console.log('[Auth] Tentando fazer login...')
 
     const { error } =
       await supabase.auth.signInWithPassword({
@@ -278,23 +241,18 @@ export function AuthProvider({
 
     if (error) {
       console.error(
-        '🔴 Erro no login:',
+        '[Auth] Erro no login:',
         error
       )
 
       throw error
     }
 
-    console.log(
-      '✅ Login realizado com sucesso.'
-    )
+    console.log('[Auth] Login realizado com sucesso.')
   }
 
   // ============================================================
   // CADASTRO
-  //
-  // O trigger do banco cria automaticamente
-  // o perfil em users.
   // ============================================================
 
   const signUp = async (
@@ -303,7 +261,10 @@ export function AuthProvider({
     name: string,
     role: 'piloto' | 'mecanico'
   ): Promise<void> => {
-    const cleanEmail = email.trim().toLowerCase()
+    const cleanEmail = email
+      .trim()
+      .toLowerCase()
+
     const cleanName = name.trim()
 
     if (!cleanEmail) {
@@ -320,11 +281,6 @@ export function AuthProvider({
       )
     }
 
-    console.log(
-      '🔵 Criando conta:',
-      cleanEmail
-    )
-
     const { data, error } =
       await supabase.auth.signUp({
         email: cleanEmail,
@@ -338,11 +294,6 @@ export function AuthProvider({
       })
 
     if (error) {
-      console.error(
-        '🔴 Erro no cadastro:',
-        error
-      )
-
       const message =
         error.message.toLowerCase()
 
@@ -375,17 +326,8 @@ export function AuthProvider({
       )
     }
 
-    console.log(
-      '✅ Conta criada:',
-      data.user.id
-    )
-
     if (data.session) {
       setUser(data.user)
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, 300)
-      )
 
       await loadProfile(data.user.id)
     }
@@ -396,26 +338,15 @@ export function AuthProvider({
   // ============================================================
 
   const signOut = async (): Promise<void> => {
-    console.log('🔵 Fazendo logout...')
-
     const { error } =
       await supabase.auth.signOut()
 
     if (error) {
-      console.error(
-        '🔴 Erro ao fazer logout:',
-        error
-      )
-
       throw error
     }
 
     setUser(null)
     setProfile(null)
-
-    console.log(
-      '✅ Logout realizado.'
-    )
   }
 
   // ============================================================
@@ -425,7 +356,9 @@ export function AuthProvider({
   const resetPassword = async (
     email: string
   ): Promise<void> => {
-    const cleanEmail = email.trim().toLowerCase()
+    const cleanEmail = email
+      .trim()
+      .toLowerCase()
 
     if (!cleanEmail) {
       throw new Error('Digite seu e-mail.')
@@ -433,14 +366,6 @@ export function AuthProvider({
 
     const redirectTo =
       `${window.location.origin}/reset-password`
-
-    console.log(
-      '🔵 Solicitando recuperação de senha:',
-      {
-        email: cleanEmail,
-        redirectTo,
-      }
-    )
 
     const { error } =
       await supabase.auth.resetPasswordForEmail(
@@ -451,77 +376,63 @@ export function AuthProvider({
       )
 
     if (error) {
-      console.error(
-        '🔴 Erro na recuperação de senha:',
-        error
-      )
-
       throw error
     }
-
-    console.log(
-      '✅ E-mail de recuperação solicitado.'
-    )
   }
 
   // ============================================================
-  // VERIFICAR ASSINATURA / TRIAL
+  // VERIFICAR ASSINATURA
   // ============================================================
 
-  const isSubscriptionActive = (): boolean => {
-    if (!profile) {
-      return false
-    }
+  const isSubscriptionActive =
+    (): boolean => {
+      if (!profile) {
+        return false
+      }
 
-    // Administrador possui acesso total.
-    if (profile.role === 'admin') {
-      return true
-    }
-
-    // Assinatura paga ativa.
-    if (profile.subscription_status === 'active') {
-      return true
-    }
-
-    // Verificar período de teste.
-    if (profile.subscription_status === 'trial') {
-      if (!profile.trial_ends_at) {
+      if (profile.role === 'admin') {
         return true
       }
 
-      const trialEnd =
-        new Date(profile.trial_ends_at)
+      if (
+        profile.subscription_status ===
+        'active'
+      ) {
+        return true
+      }
 
-      const now = new Date()
+      if (
+        profile.subscription_status ===
+        'trial'
+      ) {
+        if (!profile.trial_ends_at) {
+          return true
+        }
 
-      return trialEnd > now
+        const trialEnd =
+          new Date(profile.trial_ends_at)
+
+        const now = new Date()
+
+        return trialEnd > now
+      }
+
+      return false
     }
-
-    // Expirado.
-    return false
-  }
 
   // ============================================================
   // ATUALIZAR PERFIL
   // ============================================================
 
-  const refreshProfile = async (): Promise<void> => {
-    if (!user) {
-      console.log(
-        '🟠 refreshProfile chamado sem usuário.'
-      )
+  const refreshProfile =
+    async (): Promise<void> => {
+      if (!user) {
+        setProfile(null)
+        return
+      }
 
-      setProfile(null)
-      return
+      await loadProfile(user.id)
     }
-
-    console.log(
-      '🔵 Atualizando perfil:',
-      user.id
-    )
-
-    await loadProfile(user.id)
-  }
 
   // ============================================================
   // PROVIDER
